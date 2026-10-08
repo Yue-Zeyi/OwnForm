@@ -50,6 +50,8 @@ rm -f "$STAGE/install/installed.lock" "$STAGE/config/db_local.php" "$STAGE/confi
 
 echo "[3/4] 附带部署文档、升级 SQL 与 Nginx 配置样例"
 cp "$ROOT/scripts/宝塔部署说明.txt" "$STAGE/部署说明-宝塔.txt" 2>/dev/null || true
+mkdir -p "$STAGE/docs"
+cp "$ROOT"/docs/*.md "$STAGE/docs/" 2>/dev/null || true
 mkdir -p "$STAGE/scripts"
 cp "$ROOT/scripts/nginx-site.conf" "$STAGE/scripts/" 2>/dev/null || true
 # 数据库增量升级脚本全部随包（按文件名版本号顺序执行）
