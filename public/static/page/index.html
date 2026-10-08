@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>页面加载中</title>
+<link rel="stylesheet" href="/static/vendor/element-plus.css?v=1.4.15">
+<style>
+:root {
+  --of-theme: #409eff; --of-theme-2: #7db8ff; --of-bg-tint: #eef1f6;
+  --of-fg: #303133; --of-fg-2: #606266; --of-fg-3: #8a919c; --of-line: #ebeef5; --of-bg: #f5f7fa;
+  --el-color-primary: var(--of-theme);
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: #fff; color: var(--of-fg);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.8; -webkit-font-smoothing: antialiased;
+}
+#page-app { min-height: 100vh; }
+[v-cloak] { display: none; }
+
+/* ---------- 主体 ---------- */
+.pg-main { max-width: 860px; margin: 0 auto; padding: 0 16px 60px; }
+/* ---------- 展示模板 ----------
+   clean 纯净 / elegant 优雅：白底平铺，无卡片无阴影；
+   card 模板启用圆角浮卡（底部主题色渲染渐隐）。内嵌表单外观随模板走。 */
+.pg-content { padding: 34px 36px; }
+body.tpl-clean .pg-content, body.tpl-elegant .pg-content { background: transparent; }
+body.tpl-card { background: linear-gradient(180deg, var(--of-bg-tint) 0%, #f5f7fa 340px) fixed; }
+body.tpl-card .pg-main { padding-top: 26px; }
+body.tpl-card .pg-content { background: #fff; border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(31,56,88,.04), 0 14px 40px rgba(31,56,88,.08); }
+
+/* elegant：衬线标题 + 标题装饰线 + 收窄栏宽 */
+body.tpl-elegant .pg-main { max-width: 760px; }
+body.tpl-elegant .pg-content h1, body.tpl-elegant .pg-content h2 {
+  font-family: Georgia, "Songti SC", "SimSun", serif;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--of-line);
+}
+body.tpl-elegant .pg-content blockquote {
+  font-style: italic;
+  border-left-width: 3px;
+  background: transparent;
+  padding-left: 18px;
+}
+.pg-content > *:first-child { margin-top: 0; }
+.pg-content > *:last-child { margin-bottom: 0; }
+.pg-content h1 { font-size: 26px; margin: 24px 0 14px; font-weight: 750; letter-spacing: .3px; }
+.pg-content h2 { font-size: 20px; margin: 24px 0 10px; font-weight: 700; }
+.pg-content h3 { font-size: 17px; margin: 18px 0 8px; font-weight: 700; }
+.pg-content h4, .pg-content h5, .pg-content h6 { font-size: 15px; margin: 16px 0 8px; font-weight: 700; }
+.pg-content p { margin: 12px 0; }
+.pg-content a { color: var(--of-theme); text-decoration: underline; text-underline-offset: 3px; }
+.pg-content img { max-width: 100%; height: auto; border-radius: 12px; display: block; margin: 16px 0;
+  box-shadow: 0 2px 12px rgba(31,56,88,.08); }
+.pg-content ul, .pg-content ol { padding-left: 26px; margin: 12px 0; }
+.pg-content li { margin: 6px 0; }
+.pg-content blockquote {
+  margin: 18px 0; padding: 14px 18px; border-left: 3px solid var(--of-theme);
+  background: var(--of-bg-tint); color: var(--of-fg-2); border-radius: 0 8px 8px 0;
+}
+.pg-content pre {
+  background: #282c34; color: #abb2bf; padding: 16px 18px; border-radius: 8px;
+  overflow-x: auto; font-size: 13px; line-height: 1.6; margin: 16px 0;
+}
+.pg-content code {
+  font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  background: #f0f2f5; padding: 2px 6px; border-radius: 4px; color: #c7254e;
+}
+.pg-content pre code { background: transparent; color: inherit; padding: 0; }
+.pg-content hr { border: none; border-top: 1px solid var(--of-line); margin: 28px 0; }
+.pg-content table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 14px; }
+.pg-content th, .pg-content td { border: 1px solid var(--of-line); padding: 9px 12px; text-align: left; }
+.pg-content th { background: #fafafa; font-weight: 600; }
+
+/* ---------- 内嵌组件 ---------- */
+.pg-embed { margin: 26px 0; }
+/* 蜜罐字段：必须隐藏（此前漏定义样式，蜜罐输入框暴露在页面上，
+   既难看又会诱导真实用户误填导致提交被静默丢弃） */
+.of-honey { position: absolute; left: -9999px; top: -9999px; opacity: 0; height: 0; overflow: hidden; }
+.pg-embed-form {
+  padding: 24px; background: #f8fafc;
+  border: 1px solid #edf0f4; border-radius: 12px;
+}
+.pg-embed-form .el-input__wrapper,
+.pg-embed-form .el-select__wrapper,
+.pg-embed-form .el-textarea__inner { border-radius: 10px; }
+/* clean/elegant：去边框去圆角，仅保留浅底色块区分表单区 */
+body.tpl-clean .pg-embed-form, body.tpl-elegant .pg-embed-form {
+  border: none; border-radius: 0; background: #f8f9fb;
+}
+/* 内嵌表单控件统一（与填写页同一策略：消除宽度参差） */
+.pg-embed-form .el-input-number,
+.pg-embed-form .el-date-editor,
+.pg-embed-form .el-select,
+.pg-embed-form .el-cascader {
+  width: 100% !important;
+}
+.pg-embed-form .el-textarea__inner { resize: none; }
+.pg-embed-form .el-form-item { margin-bottom: 16px; }
+.pg-embed-form .ef-title { font-size: 18px; font-weight: 650; margin: 0 0 10px; }
+.pg-embed-form .ef-desc { color: var(--of-fg-3); font-size: 14px; margin: 0 0 18px; }
+.pg-embed-form .ef-pwd { margin: 0 0 16px; }
+.pg-embed-form .ef-pwd-tip { color: var(--of-fg-3); font-size: 12.5px; margin-top: 6px; }
+.pg-embed-form .ef-actions { margin-top: 18px; display: flex; gap: 10px; align-items: center; }
+/* 提交按钮下方的辅助组件区（提示/文字/分割线/图片等） */
+.pg-embed-form .ef-tail { margin-top: 4px; }
+.pg-embed-page { border-left: 3px solid var(--of-theme); padding: 4px 0 4px 18px; color: var(--of-fg-2); }
+.pg-embed-link { display: block; text-align: center; padding: 14px; border: 1px dashed var(--of-line); border-radius: 10px; color: var(--of-theme); text-decoration: none; }
+body.tpl-clean .pg-embed-link, body.tpl-elegant .pg-embed-link { border-radius: 4px; }
+.pg-embed-missing { text-align: center; color: var(--of-fg-3); font-size: 13px; padding: 18px; border: 1px dashed var(--of-line); border-radius: 10px; }
+.pg-submitted { text-align: center; padding: 20px 12px; color: #67c23a; font-size: 15px; }
+
+/* ---------- 骨架屏 ---------- */
+.sk-i { background: linear-gradient(90deg, #edf0f4 25%, #f7f9fb 37%, #edf0f4 63%);
+  background-size: 400% 100%; animation: pg-sk 1.3s ease infinite; border-radius: 8px; }
+@keyframes pg-sk { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+.pg-skel { max-width: 640px; margin: 0 auto; padding: 40px 20px; }
+.pg-skel .l { height: 16px; margin: 14px 0; border-radius: 6px; }
+.pg-skel .h { height: 30px; width: 46%; margin: 0 auto 22px; border-radius: 8px; }
+
+/* ---------- 安全验证弹窗（提交时触发） ---------- */
+.cap-dlg { text-align: center; }
+.cap-img { height: 46px; border-radius: 8px; cursor: pointer; border: 1px solid #ebeef5; }
+.cap-tip { font-size: 12px; color: #909399; margin-top: 10px; }
+.cap-ok {
+  width: 100%; margin-top: 20px; height: 44px; border-radius: 22px; font-weight: 600;
+  /* 主题渐变 + 白字：显式声明，与提交按钮同视觉语言（EP 默认文字色在主题
+     变量混用下解析异常） */
+  background: linear-gradient(135deg, var(--of-theme), var(--of-theme-2));
+  border: none; color: #fff;
+}
+.cap-ok:hover, .cap-ok:focus {
+  background: linear-gradient(135deg, var(--of-theme), var(--of-theme-2));
+  filter: brightness(1.06); color: #fff;
+}
+
+/* ---------- 密码 / 错误（与填写页同风格） ---------- */
+.pg-lock, .pg-closed { max-width: 400px; margin: 14vh auto 0; background: #fff; border-radius: 16px;
+  padding: 38px 30px 34px; text-align: center;
+  box-shadow: 0 1px 2px rgba(31,56,88,.04), 0 14px 40px rgba(31,56,88,.09); }
+.state-icon { width: 64px; height: 64px; margin: 0 auto 16px; border-radius: 18px;
+  background: var(--of-bg-tint); display: flex; align-items: center; justify-content: center; }
+.pg-lock h2, .pg-closed h2 { margin: 0 0 8px; font-size: 19px; }
+.pg-lock p, .pg-closed p { color: var(--of-fg-3); font-size: 14px; margin: 0 0 20px; }
+.pg-lock .el-button, .pg-closed .el-button { height: 44px; border-radius: 22px; }
+
+/* ---------- 页脚 ---------- */
+.pg-foot { text-align: center; color: var(--of-fg-3); font-size: 13px; padding: 24px 16px 32px; }
+.pg-foot a { color: var(--of-fg-3); text-decoration: none; }
+
+@media (max-width: 640px) {
+  .pg-main { padding: 0 12px 40px; }
+  .pg-content { padding: 20px 16px; }
+      .pg-embed-form { padding: 16px 14px; }
+}
+</style>
+<!--INJECT-->
+</head>
+<body>
+<div id="page-app" v-cloak>
+  <!-- 加载骨架屏 -->
+  <div v-if="state === 'loading'" class="pg-skel" aria-hidden="true">
+    <div class="sk-i h"></div>
+    <div class="sk-i l" style="width: 92%"></div>
+    <div class="sk-i l" style="width: 100%"></div>
+    <div class="sk-i l" style="width: 84%"></div>
+    <div class="sk-i l" style="width: 96%"></div>
+    <div class="sk-i l" style="width: 60%"></div>
+    <div class="sk-i l" style="height: 120px; border-radius: 12px; margin-top: 20px"></div>
+    <div class="sk-i l" style="width: 90%"></div>
+    <div class="sk-i l" style="width: 74%"></div>
+  </div>
+
+  <div v-else-if="state === 'closed'" class="pg-closed">
+    <div class="state-icon"><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="26" stroke="#e6a23c" stroke-width="4" fill="none"/><path d="M32 19v15" stroke="#e6a23c" stroke-width="4" stroke-linecap="round"/><circle cx="32" cy="43" r="2.6" fill="#e6a23c"/></svg></div>
+    <h2>{{ closedTitle }}</h2>
+    <p>{{ closedMsg }}</p>
+  </div>
+
+  <div v-else-if="state === 'password'" class="pg-lock">
+    <div class="state-icon"><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect x="20" y="28" width="24" height="19" rx="4" fill="var(--of-theme)"/><path d="M25 28v-5a7 7 0 0114 0v5" stroke="var(--of-theme)" stroke-width="3.6" fill="none"/><circle cx="32" cy="37" r="2.6" fill="#fff"/><path d="M32 39v3" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/></svg></div>
+    <h2>需要访问密码</h2>
+    <p>该页面已加密，请输入密码后查看</p>
+    <!-- in-DOM 模板：自定义标签不能自闭合，否则后续的按钮会被当成其子内容吞掉 -->
+    <el-input v-model="password" type="password" size="large" show-password placeholder="请输入访问密码" @keyup.enter="unlock"></el-input>
+    <el-button type="primary" style="width:100%;margin-top:16px" size="large" @click="unlock">进入页面</el-button>
+  </div>
+
+  <!--
+    正文视图：只渲染作者在编辑器里输入的内容（content_html），
+    不再自动注入页头 Logo 条、hero 大标题、封面图 ——
+    标题想展示的话作者自己会在正文里写，自动注入只会造成双重标题。
+    footerText 是作者在「页面设置」里显式填写的，属于输入内容的一部分。
+  -->
+  <div v-else-if="state === 'ready'" class="pg-page">
+    <div class="pg-main">
+      <!-- 正文由后端消毒后输出；内嵌组件按 data-of-embed 序号插入 -->
+      <div class="pg-content" ref="contentEl" v-html="renderedHtml"></div>
+
+      <div v-if="page.footerText" class="pg-foot">{{ page.footerText }}</div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/vendor/vue.global.prod.js?v=1.4.15"></script>
+<script src="/static/vendor/element-plus.full.min.js?v=1.4.15"></script>
+<script src="/static/vendor/element-plus-zh-cn.min.js?v=1.4.15"></script>
+<script src="/static/vendor/element-plus-icons.min.js?v=1.4.15"></script>
+<script src="/static/vendor/form-create.min.js?v=1.4.15"></script>
+<script src="/static/shared/form-embed.js?v=1.4.15"></script>
+<script>
+(function () {
+  'use strict';
+  var pageData = window.__PAGE_DATA__ || {};
+  var slug = pageData.slug || '';
+
+  // 内嵌表单组件：复用共享 mixin，保证与独立填写页行为一致
+  var EmbedForm = {
+    mixins: [window.OwnFormFormEmbed.mixin],
+    props: ['embed'],
+    data: function () {
+      return {
+        formSlug: this.embed.slug,
+        form: this.embed,
+        submitted: false
+      };
+    },
+    computed: {
+      captchaLabel: function () {
+        return { image: '图形验证码', sms: '短信验证码', geetest: '安全验证' }[this.captchaType] || '';
+      }
+    },
+    mounted: function () {
+      if (this.$refs.formEl) this.renderTo(this.$refs.formEl);
+    },
+    beforeUnmount: function () {
+      if (this.__fcApp) { try { this.__fcApp.unmount(); } catch (e) { /* 已卸载 */ } }
+      if (this.__fcTailApp) { try { this.__fcTailApp.unmount(); } catch (e) { /* 已卸载 */ } }
+    },
+    methods: {
+      renderTo: function (el) {
+        var self = this;
+        this.$nextTick(function () {
+          // mountForm 返回 Promise<boolean>（含省市区数据预取）
+          Promise.resolve(self.mountForm(el)).then(function (ok) {
+            if (!ok) {
+              ElementPlus.ElMessage.error('表单渲染失败');
+            }
+          });
+        });
+      },
+      onSubmitted: function () {
+        // 提交成功后把容器替换为成功提示
+        var self = this;
+        this.$nextTick(function () {
+          if (self.$el) {
+            self.$el.innerHTML = '<div class="pg-submitted">' +
+              (self.successText || '提交成功，感谢您的填写！') + '</div>';
+          }
+        });
+      }
+    },
+    template: `
+      <div class="pg-embed-form">
+        <h3 class="ef-title">{{ form.title }}</h3>
+        <p v-if="form.description" class="ef-desc">{{ form.description }}</p>
+        <div v-if="form.needPassword" class="ef-pwd">
+          <el-input
+            v-model="embedPassword"
+            type="password"
+            show-password
+            size="large"
+            placeholder="请输入访问密码"
+            style="max-width: 320px"
+          />
+          <div class="ef-pwd-tip">该表单设置了访问密码，填写后提交</div>
+        </div>
+        <div ref="formEl"></div>
+
+        <input class="of-honey" type="text" tabindex="-1" autocomplete="off" v-model="honeypot" />
+
+        <div class="ef-actions">
+          <el-button type="primary" :loading="submitting" @click="submit">
+            {{ form.submitText || '提 交' }}
+          </el-button>
+        </div>
+
+        <!-- 安全验证弹窗：点击提交按钮时触发 -->
+        <el-dialog
+          v-model="captchaOpen"
+          title="安全验证"
+          width="320px"
+          :close-on-click-modal="false"
+          append-to-body
+        >
+          <div class="cap-dlg">
+            <template v-if="captchaType === 'image'">
+              <img class="cap-img" :src="captchaImg" title="点击刷新" @click="refreshCaptcha" />
+              <el-input
+                v-model="captchaCode"
+                size="large"
+                placeholder="输入图中 5 位字符"
+                maxlength="5"
+                style="margin-top: 14px"
+                @keyup.enter="doSubmit"
+              />
+              <div class="cap-tip">看不清？点击图片刷新</div>
+            </template>
+            <template v-else-if="captchaType === 'sms'">
+              <el-input
+                v-model="smsCode"
+                size="large"
+                placeholder="6 位短信验证码"
+                maxlength="6"
+                @keyup.enter="doSubmit"
+              >
+                <template #append>
+                  <el-button :disabled="smsWait > 0" :loading="smsSending" @click="sendSms">
+                    {{ smsWait > 0 ? smsWait + 's 后重发' : '获取验证码' }}
+                  </el-button>
+                </template>
+              </el-input>
+              <div class="cap-tip">验证码将发送至 {{ smsPhoneMasked() || '表单中填写的手机号' }}</div>
+            </template>
+            <el-button type="primary" size="large" class="cap-ok" :loading="submitting" @click="doSubmit">
+              确认提交
+            </el-button>
+          </div>
+        </el-dialog>
+      </div>
+    `
+  };
+
+  Vue.createApp({
+    data: function () {
+      return {
+        state: 'loading',
+        page: {},
+        embeds: [],
+        password: '',
+        closedTitle: '页面不存在',
+        closedMsg: ''
+      };
+    },
+    computed: {
+      /**
+       * 渲染正文
+       *
+       * 后端已把占位符替换成 <div class="of-embed" data-of-embed="N">，
+       * 这里把 N 换成真实组件的 HTML，再交由 Vue 接管交互。
+       * 正文本身已在后端消毒，前端不再二次处理。
+       */
+      renderedHtml: function () {
+        var self = this;
+        var embeds = this.embeds || [];
+        if (!embeds.length) return this.page.html || '';
+        return String(this.page.html || '').replace(
+          /<div class="of-embed" data-of-embed="(\d+)"><\/div>/g,
+          function (m, idx) {
+            var e = embeds[Number(idx)];
+            if (!e) return '';
+            return self.componentHtml(e);
+          }
+        );
+      }
+    },
+    mounted: function () { this.load(); },
+    methods: {
+      componentHtml: function (e) {
+        if (e.type === 'missing') {
+          return '<div class="pg-embed-missing">' + escapeHtml(e.label || '内容暂不可用') + '</div>';
+        }
+        if (e.type === 'url') {
+          return '<a class="pg-embed-link" href="' + escapeAttr(e.url) +
+                 '" target="_blank" rel="noopener noreferrer">' + escapeHtml(e.title || e.url) + '</a>';
+        }
+        if (e.type === 'page') {
+          // 嵌套页面内容已由后端消毒，直接插入
+          return '<div class="pg-embed-page">' + (e.html || '') + '</div>';
+        }
+        if (e.type === 'form') {
+          // 内嵌表单：外层 Vue 组件接管，实际 DOM 在 renderTo 中挂载
+          return '<div class="pg-embed" data-embed-form="' + Number(this.embeds.indexOf(e)) + '"></div>';
+        }
+        return '';
+      },
+
+      load: function () {
+        var self = this;
+        fetch('/api/page/' + encodeURIComponent(slug), { credentials: 'same-origin' })
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (d.code !== 0) {
+              self.closedTitle = '无法访问';
+              self.closedMsg = d.msg || '页面不存在或已下线';
+              self.state = 'closed';
+              return;
+            }
+            self.page = d.data;
+            self.embeds = d.data.embeds || [];
+            // 服务端对设密页面只返回 locked 壳，正文为空
+            if (d.data.locked) {
+              document.title = d.data.title || '需要密码';
+              self.state = 'password';
+              return;
+            }
+            self.applySeo(d.data.seo || {});
+            self.applyTheme(d.data.theme || '#409eff');
+            // 展示模板：类挂 body，CSS 按模板分层（flat 已移除，存量回落 clean）
+            var tpl = ['clean', 'card', 'elegant'].indexOf(d.data.template) !== -1
+              ? d.data.template : 'clean';
+            document.body.classList.add('tpl-' + tpl);
+            document.title = d.data.title || '页面';
+            if (d.data.needPassword) { self.state = 'password'; return; }
+            self.state = 'ready';
+            self.trackView();
+            self.$nextTick(function () { self.mountEmbeddedForms(); });
+          })
+          .catch(function () {
+            self.closedMsg = '网络异常，请稍后刷新重试';
+            self.state = 'closed';
+          });
+      },
+
+      /** 为每个内嵌表单挂载独立的 Vue 应用 */
+      mountEmbeddedForms: function () {
+        var self = this;
+        window.__mountDbg = { called: true, hasRef: !!this.$refs.contentEl, embeds: (this.embeds || []).length };
+        var nodes = this.$refs.contentEl
+          ? this.$refs.contentEl.querySelectorAll('[data-embed-form]')
+          : [];
+        Array.prototype.forEach.call(nodes, function (node) {
+          var idx = Number(node.getAttribute('data-embed-form'));
+          var e = self.embeds[idx];
+          if (!e || e.type !== 'form') return;
+          try {
+            // Vue 3 的根组件 props 必须通过 createApp 的第二参数传入
+            // （mount 的第二参数是 isSVG 标志，传 props 会被静默忽略，
+            // 导致 embed 恒为 undefined、data() 读 embed.slug 抛错挂载失败）
+            var app = Vue.createApp(EmbedForm, { embed: e });
+            app.use(ElementPlus, { locale: ElementPlusLocaleZhCn });
+            app.use(formCreate);
+            app.mount(node);
+            self.__apps = self.__apps || [];
+            self.__apps.push(app);
+          } catch (err) {
+            window.__mountDbg = window.__mountDbg || {};
+            window.__mountDbg.error = String(err && err.stack || err);
+          }
+        });
+      },
+
+      applySeo: function (seo) {
+        if (!seo) return;
+        var set = function (sel, attr, val) {
+          if (!val) return;
+          var el = document.head.querySelector(sel);
+          if (!el) {
+            el = document.createElement('meta');
+            el.setAttribute(attr, '');
+            document.head.appendChild(el);
+          }
+          el.setAttribute('content', val);
+        };
+        set('meta[name="description"]', 'name', seo.description);
+        set('meta[name="keywords"]', 'name', seo.keywords);
+        if (seo.title) document.title = seo.title;
+      },
+
+      /**
+       * 上报一次浏览量
+       *
+       * 同一会话内同一页面只计一次（sessionStorage 去重），
+       * 否则刷新/来回切页会把访问量刷成点击数。
+       * 失败静默——统计不影响正文展示。
+       */
+      trackView: function () {
+        try {
+          var key = 'of_viewed_' + slug;
+          if (sessionStorage.getItem(key)) return;
+          sessionStorage.setItem(key, '1');
+        } catch (e) { /* 隐私模式禁用 storage 时不做去重，仍上报 */ }
+        fetch('/api/page/' + encodeURIComponent(slug) + '/view', {
+          method: 'POST',
+          credentials: 'same-origin'
+        }).catch(function () { /* 统计失败忽略 */ });
+      },
+
+      /**
+       * 主题色贯通：Element Plus 控件强调色走 --el-color-primary
+       * 明暗阶，需一并计算替换；再派生渐变第二色与 card 模板底色渲染。
+       */
+      applyTheme: function (theme) {
+        var hex = /^#[0-9a-fA-F]{6}$/.test(String(theme || '')) ? theme : '#409eff';
+        var chan = function (i) { return parseInt(hex.slice(i, i + 2), 16); };
+        var mixWhite = function (w) {
+          return '#' + [1, 3, 5].map(function (i) {
+            return Math.round(chan(i) * (1 - w) + 255 * w);
+          }).map(function (v) { return v.toString(16).padStart(2, '0'); }).join('');
+        };
+        var dark2 = '#' + [1, 3, 5].map(function (i) {
+          return Math.round(chan(i) * 0.8);
+        }).map(function (v) { return v.toString(16).padStart(2, '0'); }).join('');
+        var r = document.documentElement.style;
+        r.setProperty('--of-theme', hex);
+        r.setProperty('--of-theme-2', mixWhite(0.35));
+        r.setProperty('--of-bg-tint', mixWhite(0.9));
+        r.setProperty('--el-color-primary', hex);
+        [[3, 0.3], [5, 0.5], [7, 0.7], [8, 0.8], [9, 0.9]].forEach(function (p) {
+          r.setProperty('--el-color-primary-light-' + p[0], mixWhite(p[1]));
+        });
+        r.setProperty('--el-color-primary-dark-2', dark2);
+      },
+
+      unlock: function () {
+        var self = this;
+        if (!this.password) return ElementPlus.ElMessage.warning('请输入访问密码');
+        fetch('/api/page/' + encodeURIComponent(slug) + '/unlock', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ password: this.password })
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (d.code !== 0) return ElementPlus.ElMessage.error(d.msg || '访问密码不正确');
+            // 重新拉取：解锁后服务端才会返回完整正文
+            self.state = 'loading';
+            self.load();
+          })
+          .catch(function () { ElementPlus.ElMessage.error('网络异常，请稍后重试'); });
+      }
+    }
+  }).use(ElementPlus, { locale: ElementPlusLocaleZhCn }).mount('#page-app');
+
+  // 工具函数（与 Vue 模板无关，放在最外层以便多处复用）
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function escapeAttr(s) {
+    return escapeHtml(s);
+  }
+})();
+</script>
+</body>
+</html>

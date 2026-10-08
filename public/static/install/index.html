@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OwnForm · 安装向导</title>
+<link rel="stylesheet" href="/static/vendor/element-plus.css">
+<style>
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: #f5f7fa; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; color: #303133; }
+[v-cloak] { display: none; }
+.wrap { max-width: 760px; margin: 40px auto; padding: 0 16px 60px; }
+.logo { text-align: center; font-size: 30px; font-weight: 800; color: #409eff; letter-spacing: 1px; }
+.sub { text-align: center; color: #909399; font-size: 13px; margin: 6px 0 26px; }
+.mt16 { margin-top: 16px; }
+.check-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 4px; border-bottom: 1px dashed #f0f0f0; font-size: 14px; }
+.check-row:last-child { border-bottom: none; }
+.check-name { display: flex; align-items: center; gap: 8px; }
+.check-val { color: #909399; font-size: 12px; }
+.divider-title { margin: 26px 0 14px; font-weight: 700; color: #606266; font-size: 15px; }
+.done-box { text-align: center; padding: 40px 0; }
+.done-icon { font-size: 60px; }
+.done-tip { color: #909399; font-size: 13px; margin: 14px 0 24px; line-height: 1.9; }
+</style>
+</head>
+<body>
+<div id="install-app" v-cloak>
+  <div class="wrap">
+    <div class="logo">OwnForm</div>
+    <div class="sub">自建表单收集系统 · 安装向导</div>
+
+    <!-- 已安装 -->
+    <el-card v-if="installed" shadow="never">
+      <div class="done-box">
+        <div class="done-icon"><svg width="58" height="58" viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="28" fill="#67c23a" opacity=".12"/><circle cx="32" cy="32" r="21" stroke="#67c23a" stroke-width="3.5" fill="none"/><path d="M23 32.5l6.2 6.2L41.5 26" stroke="#67c23a" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <h2 style="margin:10px 0 0">系统已安装</h2>
+        <div class="done-tip">
+          检测到本系统已完成安装（install/installed.lock 已存在）。<br>
+          如需重新安装，请删除项目下 <b>install/installed.lock</b> 文件后刷新本页。
+        </div>
+        <el-button type="primary" size="large" onclick="location.href='/admin/'">进入管理后台</el-button>
+      </div>
+    </el-card>
+
+    <template v-else>
+      <!-- 环境检测 -->
+      <el-card shadow="never" v-loading="checking">
+        <template #header><b>第 1 步 · 环境检测</b></template>
+        <div class="check-row" v-for="c in checks" :key="c.name">
+          <span class="check-name">
+            <span><svg v-if="c.ok" width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="8" fill="#67c23a"/><path d="M4.5 8.2l2.4 2.4L11.5 5.6" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><svg v-else width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="8" fill="#f56c6c"/><path d="M5.4 5.4l5.2 5.2M10.6 5.4l-5.2 5.2" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg></span>{{ c.name }}
+          </span>
+          <span class="check-val">{{ c.value }}</span>
+        </div>
+        <el-alert v-if="!allOk && !checking" type="error" :closable="false" class="mt16"
+          title="存在未通过的环境要求，请处理后刷新重试"></el-alert>
+      </el-card>
+
+      <!-- 配置 -->
+      <el-card shadow="never" class="mt16">
+        <template #header><b>第 2 步 · 数据库与管理员</b></template>
+        <div class="divider-title">MySQL 数据库</div>
+        <el-form label-width="110px" label-position="left">
+          <el-row :gutter="12">
+            <el-col :span="12"><el-form-item label="数据库地址"><el-input v-model="f.dbHost" placeholder="127.0.0.1"></el-input></el-form-item></el-col>
+            <el-col :span="12"><el-form-item label="端口"><el-input v-model="f.dbPort" placeholder="3306"></el-input></el-form-item></el-col>
+            <el-col :span="12"><el-form-item label="数据库名"><el-input v-model="f.dbName" placeholder="ownform（不存在会自动创建）"></el-input></el-form-item></el-col>
+            <el-col :span="12"><el-form-item label="表前缀"><el-input v-model="f.dbPrefix" placeholder="of_"></el-input></el-form-item></el-col>
+            <el-col :span="12"><el-form-item label="用户名"><el-input v-model="f.dbUser" placeholder="root"></el-input></el-form-item></el-col>
+            <el-col :span="12"><el-form-item label="密码"><el-input v-model="f.dbPass" type="password" show-password></el-input></el-form-item></el-col>
+          </el-row>
+          <div class="divider-title">管理员账号</div>
+          <el-row :gutter="12">
+            <el-col :span="12"><el-form-item label="登录账号"><el-input v-model="f.adminUser" placeholder="3-30 位字母开头"></el-input></el-form-item></el-col>
+            <el-col :span="12"><el-form-item label="登录密码"><el-input v-model="f.adminPass" type="password" show-password placeholder="至少 6 位"></el-input></el-form-item></el-col>
+          </el-row>
+        </el-form>
+        <el-alert type="info" :closable="false" title="数据库账号请使用具有建库/建表权限的账号；安装完成后配置写入 config/db_local.php"></el-alert>
+      </el-card>
+
+      <div class="mt16" style="text-align:center">
+        <el-button type="primary" size="large" style="width:280px" :loading="installing"
+          :disabled="!allOk" @click="run">开始安装</el-button>
+      </div>
+    </template>
+  </div>
+</div>
+
+<script src="/static/vendor/vue.global.prod.js"></script>
+<script src="/static/vendor/element-plus.full.min.js"></script>
+<script src="/static/vendor/element-plus-zh-cn.min.js"></script>
+<script src="/static/vendor/element-plus-icons.min.js"></script>
+<script>
+(function () {
+  'use strict';
+  Vue.createApp({
+    data() {
+      return {
+        installed: false,
+        checks: [],
+        checking: true,
+        installing: false,
+        f: {
+          dbHost: '127.0.0.1', dbPort: '3306', dbName: 'ownform', dbPrefix: 'of_',
+          dbUser: 'root', dbPass: '',
+          adminUser: '', adminPass: '',
+        },
+      };
+    },
+    computed: {
+      allOk() {
+        return this.checks.length > 0 && this.checks.every(c => c.ok);
+      },
+    },
+    mounted() { this.load(); },
+    methods: {
+      async load() {
+        this.checking = true;
+        try {
+          const res = await fetch('/api/install/status', { credentials: 'same-origin' });
+          const data = await res.json();
+          if (data.code !== 0) throw new Error(data.msg);
+          this.installed = !!data.data.installed;
+          this.checks = data.data.checks || [];
+        } catch (e) {
+          ElementPlus.ElMessage.error(e.message || '加载失败');
+        }
+        this.checking = false;
+      },
+      async run() {
+        if (!this.f.dbName || !this.f.dbUser) return ElementPlus.ElMessage.error('请填写数据库名和用户名');
+        if (!this.f.adminUser || !this.f.adminPass) return ElementPlus.ElMessage.error('请填写管理员账号和密码');
+        this.installing = true;
+        try {
+          const res = await fetch('/api/install/run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify(this.f),
+          });
+          const data = await res.json();
+          if (data.code !== 0) throw new Error(data.msg || '安装失败');
+          ElementPlus.ElMessageBox.alert(
+            '管理员账号：' + data.data.adminUser + '<br><br>请牢记密码。现在可以登录后台创建第一个表单了。',
+            '安装完成',
+            { dangerouslyUseHTMLString: true, confirmButtonText: '进入管理后台', showClose: false }
+          ).then(() => { location.href = '/admin/'; });
+        } catch (e) {
+          ElementPlus.ElMessage.error(e.message || '安装失败');
+        }
+        this.installing = false;
+      },
+    },
+  })
+  .use(ElementPlus, { locale: ElementPlusLocaleZhCn })
+  .mount('#install-app');
+})();
+</script>
+</body>
+</html>

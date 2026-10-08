@@ -1,0 +1,35 @@
+*.log
+.env
+composer.phar
+.DS_Store
+Thumbs.db
+/.idea
+/.vscode
+/vendor
+/.settings
+/.buildpath
+/.project
+
+# 安装向导生成的数据库凭据（含明文密码，禁止入库）
+/config/db_local.php
+/config/db_local.php.bak
+# 敏感配置加密主密钥
+/config/secret_key.php
+/install/installed.lock
+
+# 构建产物与发布包
+/version/
+/admin-src/node_modules/
+/admin-src/dist/
+/runtime/
+# 管理端构建产物（由 admin-src pnpm build 生成，打包脚本会现场构建）
+/public/admin/
+# 用户上传的表单附件（用户数据不入库）
+/public/storage/uploads/
+# 遗留的历史升级脚本（现行版本见 scripts/upgrade-*.sql）
+/updates/
+# AI 工作区文件
+/.zcode/
+/.zcodeignore
+# 旧 CI 配置
+/.travis.yml

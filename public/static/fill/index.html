@@ -1,0 +1,865 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>表单填写</title>
+<link rel="stylesheet" href="/static/vendor/element-plus.css?v=1.4.15">
+<style>
+:root {
+  --of-theme: #409eff;
+  --of-theme-2: #7db8ff;
+  --of-bg-tint: #eef1f6;
+  --of-glow: rgba(64,158,255,.32);
+  --el-color-primary: var(--of-theme);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: linear-gradient(180deg, var(--of-bg-tint) 0%, #f5f7fa 320px) fixed;
+  color: #303133; min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+[v-cloak] { display: none; }
+/* iOS 聚焦不缩放：输入控件 16px */
+.fill-page input, .fill-page textarea { font-size: 16px; }
+.fill-page { max-width: 640px; margin: 0 auto; padding: 24px 14px calc(60px + env(safe-area-inset-bottom)); }
+.fill-card { background: #fff; border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(31,56,88,.04), 0 14px 40px rgba(31,56,88,.09); overflow: hidden; }
+
+/* ---------- 卡片头：标题 + 描述紧凑连贯，装饰只留分隔线 ---------- */
+.fill-body { padding: 30px 24px 28px; position: relative; }
+.fill-title { font-size: 21px; font-weight: 750; text-align: center; letter-spacing: .5px;
+  /* 无描述时标题与分隔线也要留出间距，不能只靠描述文字撑开 */
+  margin-bottom: 14px; }
+.fill-desc { color: #8a919c; font-size: 13.5px; text-align: center; margin: 0 0 18px;
+  white-space: pre-wrap; line-height: 1.75; }
+.fill-divider { border-bottom: 1px dashed #e7ebf0; margin-bottom: 20px; }
+/* 提交按钮下方的辅助组件区（提示/文字/分割线/图片等） */
+.fill-tail { margin-top: 6px; }
+
+/* ---------- 表单控件统一 ----------
+   全宽 + 大尺寸（opt.form.size=large）+ 10px 圆角，聚焦光晕随主题色 */
+.fill-body .el-input-number,
+.fill-body .el-date-editor,
+.fill-body .el-select,
+.fill-body .el-cascader {
+  width: 100% !important;
+}
+.fill-body .el-textarea__inner { resize: none; border-radius: 10px; }
+.fill-body .el-form-item { margin-bottom: 20px; }
+.fill-body .el-input__wrapper,
+.fill-body .el-select__wrapper,
+.fill-body .el-textarea__inner { border-radius: 10px; }
+.fill-body .el-form-item__label { font-weight: 550; }
+
+/* ---------- 提交按钮：主题渐变胶囊 ---------- */
+.fill-submit-btn { width: 100%; margin-top: 24px; height: 48px; font-size: 16px; font-weight: 600;
+  border: none !important; border-radius: 24px !important; color: #fff !important;
+  background: linear-gradient(135deg, var(--of-theme), var(--of-theme-2)) !important;
+  box-shadow: 0 8px 20px var(--of-glow);
+  transition: transform .15s ease, filter .2s ease, box-shadow .2s ease; }
+.fill-submit-btn:hover { filter: brightness(1.06); }
+.fill-submit-btn:active { transform: scale(.975); box-shadow: 0 4px 12px var(--of-glow); }
+
+/* ---------- 安全验证弹窗（提交时触发） ---------- */
+.cap-dlg { text-align: center; }
+.cap-img { height: 46px; border-radius: 8px; cursor: pointer; border: 1px solid #ebeef5; }
+.cap-tip { font-size: 12px; color: #909399; margin-top: 10px; }
+/* 主题渐变 + 白字：与提交按钮同一视觉语言。
+   显式声明文字色——EP 默认 primary 的文字色变量在主题变量混用下会解析异常 */
+.cap-ok {
+  width: 100%; margin-top: 20px; height: 44px; border-radius: 22px; font-weight: 600;
+  background: linear-gradient(135deg, var(--of-theme), var(--of-theme-2));
+  border: none; color: #fff;
+}
+.cap-ok:hover, .cap-ok:focus {
+  background: linear-gradient(135deg, var(--of-theme), var(--of-theme-2));
+  filter: brightness(1.06); color: #fff;
+}
+.fill-honey { position: absolute; left: -9999px; top: -9999px; opacity: 0; height: 0; overflow: hidden; }
+
+/* ---------- 状态页（密码/关闭） ---------- */
+.pwd-card { max-width: 380px; margin: 14vh auto 0; background: #fff; border-radius: 16px;
+  padding: 38px 30px 34px; box-shadow: 0 1px 2px rgba(31,56,88,.04), 0 14px 40px rgba(31,56,88,.09); text-align: center; }
+.state-icon { width: 64px; height: 64px; margin: 0 auto 16px; border-radius: 18px;
+  background: var(--of-bg-tint); display: flex; align-items: center; justify-content: center; }
+.fill-state-title { font-size: 19px; font-weight: 700; margin-bottom: 8px; }
+.fill-state-desc { color: #8a919c; font-size: 14px; line-height: 1.75; }
+
+/* ---------- 成功页：对勾描边动画 ---------- */
+.done-wrap { padding: 56px 26px 46px; text-align: center; animation: pop-in .45s cubic-bezier(.2,.9,.3,1.35); }
+@keyframes pop-in { from { transform: scale(.88); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.done-check .done-ring { stroke-dasharray: 132; stroke-dashoffset: 132; animation: dash .55s ease-out forwards; }
+.done-check .done-tick { stroke-dasharray: 46; stroke-dashoffset: 46; animation: dash .3s ease-out .45s forwards; }
+@keyframes dash { to { stroke-dashoffset: 0; } }
+.jump-line { font-size: 13px; color: #8a919c; margin-top: 12px; }
+.jump-line a { color: var(--of-theme); text-decoration: none; cursor: pointer; }
+
+/* ---------- 骨架屏 ---------- */
+.sk-i { background: linear-gradient(90deg, #edf0f4 25%, #f7f9fb 37%, #edf0f4 63%);
+  background-size: 400% 100%; animation: sk-sh 1.3s ease infinite; border-radius: 8px; }
+@keyframes sk-sh { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+.sk-line { height: 16px; margin: 12px auto; }
+.sk-line.c { margin-left: auto; margin-right: auto; }
+.sk-label { height: 13px; width: 30%; margin-bottom: 8px; }
+.sk-input { height: 44px; border-radius: 10px; }
+.sk-btn { height: 48px; border-radius: 24px; margin-top: 24px; }
+
+/* ---------- 客服浮窗 ---------- */
+.service-fab { position: fixed; right: 16px; bottom: calc(24px + env(safe-area-inset-bottom)); width: 46px; height: 46px;
+  border-radius: 50%; background: linear-gradient(135deg, var(--of-theme), var(--of-theme-2)); color: #fff; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; box-shadow: 0 6px 16px var(--of-glow); z-index: 50; border: none; }
+.service-fab:active { transform: scale(.94); }
+.service-pop { position: fixed; right: 16px; bottom: calc(80px + env(safe-area-inset-bottom)); background: #fff; border-radius: 12px;
+  box-shadow: 0 10px 34px rgba(31,56,88,.18); padding: 14px; z-index: 50; text-align: center; }
+.service-pop img { width: 160px; height: 160px; display: block; border-radius: 8px; }
+.service-pop-title { font-size: 13px; color: #606266; margin-bottom: 8px; }
+.service-pop-link { display: block; }
+/* ---------- 表单内关联入口（桌面端与移动端共用） ---------- */
+.fill-links { margin-top: 22px; padding-top: 18px; border-top: 1px dashed #e7ebf0; display: flex; flex-wrap: wrap; gap: 10px; }
+.fill-link {
+  display: inline-flex; align-items: center; gap: 5px; padding: 9px 15px; font-size: 14px;
+  border: 1px solid #e2e6ec; border-radius: 10px; color: var(--of-theme);
+  text-decoration: none; background: #fff; transition: border-color .2s, background .2s;
+}
+.fill-link:hover { border-color: var(--of-theme); background: var(--of-bg-tint); }
+.fill-link:active { transform: scale(.98); }
+
+@media (max-width: 480px) {
+  .fill-page { padding: 0 0 calc(40px + env(safe-area-inset-bottom)); }
+  .fill-card { border-radius: 0; }
+  .fill-body { padding: 24px 16px 22px; }
+  .pwd-card { margin: 10vh 16px 0; }
+}
+</style>
+<!--INJECT-->
+</head>
+<body>
+<div id="fill-app" v-cloak>
+
+  <!-- 加载骨架屏 -->
+  <div v-if="state === 'loading'" class="fill-page">
+    <div class="fill-card sk" aria-hidden="true">
+      <div class="fill-body">
+        <div class="sk-i sk-line" style="width: 52%; margin-top: 4px"></div>
+        <div class="sk-i sk-line" style="width: 34%"></div>
+        <div class="fill-divider" style="border-color: transparent"></div>
+        <div v-for="i in 3" :key="i" style="margin-bottom: 20px">
+          <div class="sk-i sk-label"></div>
+          <div class="sk-i sk-input"></div>
+        </div>
+        <div class="sk-i sk-btn"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 密码页 -->
+  <div v-else-if="state === 'password'" class="pwd-card">
+    <div class="state-icon"><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect x="20" y="28" width="24" height="19" rx="4" fill="var(--of-theme)"/><path d="M25 28v-5a7 7 0 0114 0v5" stroke="var(--of-theme)" stroke-width="3.6" fill="none"/><circle cx="32" cy="37" r="2.6" fill="#fff"/><path d="M32 39v3" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/></svg></div>
+    <div class="fill-state-title">访问密码</div>
+    <div class="fill-state-desc" style="margin-bottom:18px">该表单需要访问密码才能填写</div>
+    <el-input v-model="password" placeholder="请输入访问密码" size="large" show-password @keyup.enter="unlock"></el-input>
+    <el-button type="primary" size="large" style="width:100%; margin-top:16px; height:46px; border-radius:23px" :color="theme" @click="unlock">进入填写</el-button>
+  </div>
+
+  <!-- 表单页 -->
+  <div v-else-if="state === 'form'" class="fill-page">
+    <div class="fill-card">
+      <div class="fill-body">
+        <div class="fill-title">{{ form.title }}</div>
+        <div class="fill-desc" v-if="form.description">{{ form.description }}</div>
+        <div class="fill-divider"></div>
+        <div ref="formEl"></div>
+
+        <input class="fill-honey" type="text" name="__hp" tabindex="-1" autocomplete="off" v-model="honeypot" />
+        <el-button type="primary" class="fill-submit-btn" :color="theme" size="large" :loading="submitting" @click="submit">
+          {{ form.submitText || '提 交' }}
+        </el-button>
+
+        <!-- 表单内关联的页面 / 链接入口 -->
+        <div class="fill-links" v-if="links && links.length">
+          <a
+            v-for="(l, i) in links"
+            :key="i"
+            class="fill-link"
+            :href="l.url"
+            target="_blank"
+            rel="noopener noreferrer"
+          >{{ l.title }}</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 成功页：对勾描边动画 + 再填一份 + 跳转倒计时 -->
+  <div v-else-if="state === 'success'" class="fill-page">
+    <div class="fill-card">
+      <div class="done-wrap">
+        <svg class="done-check" width="76" height="76" viewBox="0 0 64 64" fill="none">
+          <circle cx="32" cy="32" r="21" stroke="#67c23a" stroke-width="3.5" class="done-ring" fill="none"/>
+          <path d="M23 32.5l6.2 6.2L41.5 26" stroke="#67c23a" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" class="done-tick" fill="none"/>
+        </svg>
+        <div class="fill-state-title" style="margin-top:14px">{{ successTitle }}</div>
+        <div class="fill-state-desc">{{ successText }}</div>
+        <div class="jump-line" v-if="jumpLeft > 0">
+          {{ jumpLeft }} 秒后自动跳转 · <a @click="jumpNow">立即跳转</a>
+        </div>
+        <el-button
+          v-if="!limitOnce"
+          class="fill-submit-btn"
+          size="large"
+          @click="againFill"
+        >再填一份</el-button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 关闭/错误页 -->
+  <div v-else-if="state === 'closed'" class="fill-page" style="padding-top: 14vh">
+    <div class="pwd-card">
+      <div class="state-icon"><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="26" stroke="#e6a23c" stroke-width="4" fill="none"/><path d="M32 19v15" stroke="#e6a23c" stroke-width="4" stroke-linecap="round"/><circle cx="32" cy="43" r="2.6" fill="#e6a23c"/></svg></div>
+      <div class="fill-state-title">{{ closedTitle }}</div>
+      <div class="fill-state-desc">{{ closedMsg }}</div>
+    </div>
+  </div>
+
+    <!-- 安全验证弹窗：点击提交按钮时触发 -->
+    <el-dialog
+      v-model="captchaOpen"
+      title="安全验证"
+      width="340px"
+      :close-on-click-modal="false"
+      append-to-body
+    >
+    <div class="cap-dlg">
+      <template v-if="captchaType === 'image'">
+        <img class="cap-img" :src="captchaImg" title="点击刷新" @click="refreshCaptcha" />
+        <!-- 注意：本页为 in-DOM 模板，自定义标签不能写自闭合（浏览器会把
+             后续兄弟节点解析成它的子内容而被吞掉），必须显式闭合 -->
+        <el-input
+          v-model="captchaCode"
+          size="large"
+          placeholder="输入图中 5 位字符"
+          maxlength="5"
+          style="margin-top: 14px"
+          @keyup.enter="doSubmit"
+        ></el-input>
+        <div class="cap-tip">看不清？点击图片刷新</div>
+      </template>
+      <template v-else-if="captchaType === 'sms'">
+        <el-input
+          v-model="smsCode"
+          size="large"
+          placeholder="6 位短信验证码"
+          maxlength="6"
+          @keyup.enter="doSubmit"
+        >
+          <template #append>
+            <el-button :disabled="smsWait > 0" :loading="smsSending" @click="sendSms">
+              {{ smsWait > 0 ? smsWait + 's 后重发' : '获取验证码' }}
+            </el-button>
+          </template>
+        </el-input>
+        <div class="cap-tip">验证码将发送至 {{ smsPhoneMasked || '表单中填写的手机号' }}</div>
+      </template>
+      <el-button
+        type="primary"
+        size="large"
+        class="cap-ok"
+        :color="theme"
+        :loading="submitting"
+        @click="doSubmit"
+      >确认提交</el-button>
+    </div>
+  </el-dialog>
+
+  <!-- 客服浮窗 -->
+  <template v-if="state === 'form' && service.type !== 'none'">
+    <button class="service-fab" title="联系客服" @click="serviceShow = !serviceShow">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 12a8 8 0 1116 0v4a3 3 0 01-3 3h-1.5" stroke="#fff" stroke-width="2" stroke-linecap="round"/><path d="M4 12v3.5A2.5 2.5 0 006.5 18H8v-6H6a2 2 0 00-2 2z" fill="#fff"/><path d="M20 12v3.5a2.5 2.5 0 01-2.5 2.5H16v-6h2a2 2 0 012 2z" fill="#fff"/><rect x="3" y="11" width="3.4" height="6.4" rx="1.7" fill="#fff" opacity=".9"/><rect x="17.6" y="11" width="3.4" height="6.4" rx="1.7" fill="#fff" opacity=".9"/></svg>
+    </button>
+    <div class="service-pop" v-if="serviceShow">
+      <template v-if="service.type === 'qrcode'">
+        <div class="service-pop-title">扫码联系客服</div>
+        <img :src="service.qrcode" alt="客服二维码" />
+      </template>
+      <template v-else>
+        <div class="service-pop-title">联系客服</div>
+        <el-button type="primary" class="service-pop-link" @click="openService">打开客服会话</el-button>
+      </template>
+      <div style="margin-top:10px"><el-button link size="small" @click="serviceShow = false">收起</el-button></div>
+    </div>
+  </template>
+
+</div>
+
+<script src="/static/vendor/vue.global.prod.js?v=1.4.15"></script>
+<script src="/static/vendor/element-plus.full.min.js?v=1.4.15"></script>
+<script src="/static/vendor/element-plus-zh-cn.min.js?v=1.4.15"></script>
+<script src="/static/vendor/element-plus-icons.min.js?v=1.4.15"></script>
+<script src="/static/vendor/form-create.min.js?v=1.4.15"></script>
+<script>
+(function () {
+  'use strict';
+  const pageData = window.__PAGE_DATA__ || {};
+  const slug = pageData.slug || '';
+  /* 渠道码：路径式 /s/{slug}/{code} 由后端注入，?ch= 为兼容兜底 */
+  const channelCode = String(pageData.ch || new URLSearchParams(location.search).get('ch') || '');
+
+  /* ---------- 字段图标与尾部辅助组件的共享助手 ----------
+     图标名存在规则 __icon 上，这里从 ElementPlusIconsVue（vendor UMD）解析组件；
+     尾部无字段节点（提示/文字/分割线/图片等）拆到提交按钮下方渲染。 */
+  const ICON_CACHE = {};
+  function iconComp(rule) {
+    const name = rule ? (rule.props && rule.props.__icon) || rule.__icon : '';
+    if (!name || typeof name !== 'string') return null;
+    if (name in ICON_CACHE) return ICON_CACHE[name];
+    const lib = window.ElementPlusIconsVue || {};
+    ICON_CACHE[name] = lib[name] || null;
+    return ICON_CACHE[name];
+  }
+  function titleText(rule) {
+    if (!rule) return '';
+    if (typeof rule.title === 'string') return rule.title;
+    return (rule.title && rule.title.title) || '';
+  }
+  /* 后台登录态下测试自己表单：上传带上后台 Cookie 里的 CSRF 令牌（同 form-embed.js） */
+  function csrfHeaders() {
+    const m = document.cookie.match(/(?:^|;\s*)csrf-token=([^;]+)/);
+    if (!m) return {};
+    try { return { 'X-CSRF-TOKEN': decodeURIComponent(m[1]) }; } catch (e) { return {}; }
+  }
+
+  function splitTail(rule) {
+    const LAYOUT = ['row', 'col', 'card', 'table', 'grid', 'tabs', 'collapse', 'collapseitem',
+      'subform', 'group', 'tableform', 'el-row', 'el-col'];
+    const main = (rule || []).slice();
+    const tail = [];
+    while (main.length) {
+      const last = main[main.length - 1];
+      const type = String((last && last.type) || '').toLowerCase();
+      if (last && !last.field && LAYOUT.indexOf(type) === -1) {
+        tail.unshift(main.pop());
+      } else break;
+    }
+    return [main, tail];
+  }
+  /* 提交按钮位置切分：规则里有 props.__submit 标记时，标记前=主表单、
+     标记后=按钮下方内容；无标记时按钮固定在最后（末尾纯展示组件排到按钮下） */
+  function splitBySubmit(rule) {
+    const idx = (rule || []).findIndex(n => n && n.props && n.props.__submit);
+    if (idx === -1) {
+      const [before, after] = splitTail(rule);
+      return { before, after, hasMarker: false };
+    }
+    return { before: rule.slice(0, idx), after: rule.slice(idx + 1), hasMarker: true };
+  }
+
+  Vue.createApp({
+    data() {
+      return {
+        state: 'loading',           // loading | password | form | success | closed
+        form: {},
+        theme: '#409eff',
+        password: '',
+        submitting: false,
+        honeypot: '',
+        fApi: null,
+        limitOnce: false,
+        successTitle: '提交成功',
+        successText: '感谢您的填写！',
+        jumpLeft: 0,
+        jumpUrl: '',
+        closedTitle: '无法访问',
+        closedMsg: '',
+        // 提交验证：点击提交按钮时以弹窗触发
+        captchaOpen: false,
+        pendingSubmit: false,
+        captchaType: 'none',
+        captchaImg: '',
+        captchaToken: '',
+        captchaCode: '',
+        smsCode: '',
+        smsWait: 0,
+        smsTimer: null,
+        smsSending: false,
+        geetCode: null,
+        geetestObj: null,
+        // 客服
+        service: { type: 'none', link: '', qrcode: '' },
+        serviceShow: false,
+        // 关联入口与提交后跳转
+        links: [],
+        afterSubmit: { type: 'none', target: '', delay: 3 },
+        jumpTimer: null,
+      };
+    },
+    computed: {
+      smsPhoneMasked() {
+        if (!this.fApi || !this.form.smsPhoneField) return '';
+        const fd = this.allFormData();
+        const p = String(fd[this.form.smsPhoneField] || '').trim();
+        if (!/^1[3-9]\d{9}$/.test(p)) return p;
+        return p.slice(0, 3) + '****' + p.slice(7);
+      },
+    },
+    mounted() { this.load(); },
+    unmounted() {
+      if (this.smsTimer) clearInterval(this.smsTimer);
+      if (this.jumpTimer) clearTimeout(this.jumpTimer);
+    },
+    methods: {
+      /**
+       * 主题色贯通：不只换 --of-theme，
+       * Element Plus 所有控件的强调色（focus/选中/hover）走 --el-color-primary
+       * 及其明暗阶，需一并计算替换；再派生渐变第二色 / 底色渲染 / 按钮光晕。
+       */
+      applyTheme(theme) {
+        const hex = /^#[0-9a-fA-F]{6}$/.test(String(theme || '')) ? theme : '#409eff';
+        const chan = i => parseInt(hex.slice(i, i + 2), 16);
+        const mixWhite = w =>
+          '#' + [1, 3, 5].map(i => Math.round(chan(i) * (1 - w) + 255 * w))
+            .map(v => v.toString(16).padStart(2, '0')).join('');
+        const dark2 = () =>
+          '#' + [1, 3, 5].map(i => Math.round(chan(i) * 0.8))
+            .map(v => v.toString(16).padStart(2, '0')).join('');
+        const r = document.documentElement.style;
+        r.setProperty('--of-theme', hex);
+        r.setProperty('--of-theme-2', mixWhite(0.35));
+        r.setProperty('--of-bg-tint', mixWhite(0.9));
+        r.setProperty('--of-glow', hex + '52');
+        r.setProperty('--el-color-primary', hex);
+        [[3, 0.3], [5, 0.5], [7, 0.7], [8, 0.8], [9, 0.9]].forEach(([n, w]) => {
+          r.setProperty('--el-color-primary-light-' + n, mixWhite(w));
+        });
+        r.setProperty('--el-color-primary-dark-2', dark2());
+      },
+      async load() {
+        try {
+          const res = await fetch('/api/fill/' + encodeURIComponent(slug) + (channelCode ? '?ch=' + encodeURIComponent(channelCode) : ''), { credentials: 'same-origin' });
+          const data = await res.json();
+          if (data.code !== 0) {
+            this.closedTitle = '无法访问';
+            this.closedMsg = data.msg || '表单不存在或已停止收集';
+            this.state = 'closed';
+            return;
+          }
+          this.form = data.data;
+          this.theme = data.data.theme || '#409eff';
+          this.limitOnce = !!data.data.limitOnce;
+          this.captchaType = data.data.captcha || 'none';
+          this.service = data.data.service || { type: 'none', link: '', qrcode: '' };
+          this.links = data.data.links || [];
+          this.afterSubmit = data.data.afterSubmit || { type: 'none', target: '', delay: 3 };
+          this.applyTheme(this.theme);
+          document.title = this.form.title || '表单填写';
+          if (data.data.needPassword) { this.state = 'password'; return; }
+          this.renderForm();
+          if (this.captchaType === 'geetest') this.initGeetest();
+        } catch (e) {
+          this.closedMsg = '网络异常，请稍后刷新重试';
+          this.state = 'closed';
+        }
+      },
+      refreshCaptcha() {
+        this.captchaCode = '';
+        fetch('/api/captcha', { credentials: 'same-origin' })
+          .then(r => r.json())
+          .then(d => {
+            if (d.code === 0) {
+              this.captchaImg = d.data.img;
+              this.captchaToken = d.data.token;
+            }
+          });
+      },
+      initGeetest() {
+        if (!this.form.geetestCaptchaId) return;
+        const init = () => {
+          if (!window.initGeetest4) return setTimeout(init, 300);
+          initGeetest4({ captchaId: this.form.geetestCaptchaId, product: 'bind', language: 'z-cn' }, (obj) => {
+            this.geetestObj = obj;
+            // 验证通过后自动续提交（pendingSubmit 在点击提交按钮时置位）
+            obj.onSuccess(() => {
+              const r = obj.getValidate();
+              if (r) this.geetCode = { lot_number: r.lot_number, captcha_output: r.captcha_output, pass_token: r.pass_token, gen_time: r.gen_time };
+              if (this.pendingSubmit) {
+                this.pendingSubmit = false;
+                this.doSubmit();
+              }
+            });
+            obj.onClose(() => { this.geetestObj = obj; this.pendingSubmit = false; });
+          });
+        };
+        const s = document.createElement('script');
+        s.src = 'https://static.geetest.com/v4/gt4.js';
+        s.onload = init;
+        document.head.appendChild(s);
+      },
+      async sendSms() {
+        if (this.smsSending || this.smsWait > 0) return;
+        if (!this.fApi) return;
+        const phoneField = this.form.smsPhoneField;
+        if (!phoneField) return ElementPlus.ElMessage.error('表单未配置手机号字段');
+        const fd = this.fApi.formData();
+        const phone = String(fd[phoneField] || '').trim();
+        if (!/^1[3-9]\d{9}$/.test(phone)) {
+          return ElementPlus.ElMessage.error('请先在表单中填写正确的手机号');
+        }
+        this.smsSending = true;
+        try {
+          const res = await fetch('/api/fill/' + encodeURIComponent(slug) + '/sms-code', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin', body: JSON.stringify({ phone }),
+          });
+          const d = await res.json();
+          if (d.code !== 0) throw new Error(d.msg || '发送失败');
+          ElementPlus.ElMessage.success(d.msg || '验证码已发送');
+          this.smsWait = d.data.wait || 60;
+          this.smsTimer = setInterval(() => {
+            this.smsWait--;
+            if (this.smsWait <= 0) clearInterval(this.smsTimer);
+          }, 1000);
+        } catch (e) {
+          ElementPlus.ElMessage.error(e.message);
+        }
+        this.smsSending = false;
+      },
+      unlock() {
+        if (!this.password) return ElementPlus.ElMessage.warning('请输入访问密码');
+        this.renderForm();
+        if (this.captchaType === 'geetest') this.initGeetest();
+      },
+
+      /** 合并主表单与提交按钮后表单实例的字段值 */
+      allFormData() {
+        const fd = this.fApi ? this.fApi.formData() : {};
+        if (this.fApiTail) Object.assign(fd, this.fApiTail.formData());
+        return fd;
+      },
+
+      /** 全国省市区数据懒加载：约 150KB 静态文件，仅在表单含省市区级联时请求。
+       *  取回后缓存到 _regionData，renderForm 在挂载表单前同步注入。 */
+      loadRegionOptions() {
+        if (!this._regionLoader) {
+          this._regionLoader = fetch('/static/vendor/region-data.json')
+            .then(r => r.ok ? r.json() : Promise.reject(new Error(r.status)))
+            .then(data => { this._regionData = Array.isArray(data) ? data : []; return this._regionData; })
+            .catch(() => { this._regionLoader = null; this._regionData = []; return []; });
+        }
+        return this._regionLoader;
+      },
+
+      /**
+       * 提交成功后的跳转
+       *
+       * target 已由后端校验：page 类型只会是本系统 10 位分享码，
+       * url 类型只会是 http(s) 绝对地址，因此这里无需再做协议判断。
+       */
+      scheduleJump() {
+        const cfg = this.afterSubmit || {};
+        if (!cfg.type || cfg.type === 'none' || !cfg.target) return;
+        const url = cfg.type === 'page' ? '/p/' + cfg.target : cfg.target;
+        const delay = Math.min(60, Math.max(0, Number(cfg.delay) || 0));
+        if (delay === 0) { window.location.href = url; return; }
+        // 倒计时展示在成功页，可点「立即跳转」提前离开
+        this.jumpUrl = url;
+        this.jumpLeft = delay;
+        if (this.jumpTimer) clearInterval(this.jumpTimer);
+        this.jumpTimer = setInterval(() => {
+          this.jumpLeft--;
+          if (this.jumpLeft <= 0) {
+            clearInterval(this.jumpTimer);
+            window.location.href = url;
+          }
+        }, 1000);
+      },
+      jumpNow() {
+        if (this.jumpTimer) clearInterval(this.jumpTimer);
+        if (this.jumpUrl) window.location.href = this.jumpUrl;
+      },
+      /** 再填一份：清空表单与验证码，回到填写视图 */
+      againFill() {
+        if (this.jumpTimer) { clearInterval(this.jumpTimer); this.jumpTimer = null; }
+        this.jumpLeft = 0;
+        this.successTitle = '提交成功';
+        this.successText = '感谢您的填写！';
+        this.captchaCode = '';
+        this.smsCode = '';
+        if (this.captchaType === 'image') this.refreshCaptcha();
+        if (this.captchaType === 'geetest') {
+          this.geetCode = null;
+          if (this.geetestObj) this.geetestObj.reset();
+        }
+        // 重新挂载表单：状态切换会销毁表单容器，
+        // 必须全新挂载（全新实例值自然为空，提示节点/尾部组件一并重建）
+        this.renderForm();
+        window.scrollTo(0, 0);
+      },
+      async renderForm() {
+        const self = this;
+        const rule = this.form.fields || [];
+        if (!rule.length) {
+          this.closedTitle = '表单为空';
+          this.closedMsg = '该表单还没有配置字段';
+          this.state = 'closed';
+          return;
+        }
+        this.state = 'form';
+        this.$nextTick(async () => {
+          const container = this.$refs.formEl;
+          if (!container) return;
+          // 状态切换（提交成功/关闭）会销毁表单容器并重建，
+          // 旧实例挂在已销毁的容器上——必须先卸载，再全新挂载
+          if (this._fcMain) { try { this._fcMain.unmount(); } catch (e) { /* 已销毁 */ } this._fcMain = null; }
+          if (this._fcTail) { try { this._fcTail.unmount(); } catch (e) { /* 已销毁 */ } this._fcTail = null; }
+          container.innerHTML = '';
+          const deep = JSON.parse(JSON.stringify(rule));
+          // 省市区级联的区划数据必须在挂载前就位：
+          // form-create 挂载后对原始规则对象补 options 不会触发重渲染
+          if (JSON.stringify(deep).includes('__region')) {
+            await self.loadRegionOptions();
+          }
+          // 提示信息节点：渲染在输入框正下方
+          const hintNode = (text) => ({
+            type: 'div',
+            class: 'of-field-hint',
+            style: { color: '#909399', fontSize: '12px', lineHeight: '1.5', margin: '-14px 0 14px' },
+            children: ['\u2139 ' + text]
+          });
+          (function walk(nodes) {
+            // 倒序遍历：可在当前字段后原地插入提示节点
+            for (let i = nodes.length - 1; i >= 0; i--) {
+              const n = nodes[i];
+              if (!n || typeof n !== 'object') continue;
+              if (n.field && n.info) {
+                const text = n.info;
+                n.info = '';
+                nodes.splice(i + 1, 0, hintNode(text));
+              }
+              if (n.type === 'upload') {
+                n.props = n.props || {};
+                // 访客上传地址无条件覆盖（历史占位值 '/' 会导致 302 进后台）
+                n.props.action = '/api/upload' + (self.form.id ? '?formId=' + self.form.id : '');
+                n.props.name = n.props.name || 'file';
+                n.props.headers = Object.assign({}, n.props.headers || {}, csrfHeaders());
+                // element-plus 上传成功后 file.url 仍是本地 blob 预览地址；
+                // onSuccess 先于值同步执行，这里把服务器地址写回，提交值才是有效 URL
+                if (!n.props.onSuccess) {
+                  n.props.onSuccess = function(res, file) {
+                    const url = res && res.data && res.data.url;
+                    if (url && file) file.url = url;
+                    else if (file) file.status = 'fail'; // 无有效地址 → 按失败处理
+                  };
+                }
+              }
+              // form-create 3.2 无 textarea 类型：转为 input + props.type=textarea
+              if (n.type === 'textarea') {
+                n.type = 'input';
+                n.props = n.props || {};
+                n.props.type = 'textarea';
+              }
+              // 省市区级联（props.__region）：同步注入全国区划数据（与 form-embed.js 保持一致）
+              if (n.type === 'cascader' && n.props && n.props.__region) {
+                n.props.props = Object.assign({ emitPath: true }, n.props.props || {});
+                n.props.options = Array.isArray(self._regionData) ? self._regionData : [];
+              }
+              if (Array.isArray(n.children)) walk(n.children);
+              if (n.props && Array.isArray(n.props.rule)) walk(n.props.rule);
+            }
+          })(deep);
+          // 提交按钮位置切分（可由「提交按钮」辅助组件拖拽指定）
+          this.fApiTail = null;
+          const parts = splitBySubmit(deep);
+          const mainRule = parts.before, tailRule = parts.after;
+          const app = Vue.createApp({
+            setup() {
+              // v-model:api 双向绑定拿 fApi（form-create created 时 emit update:api）
+              const fApi = Vue.shallowRef(null);
+              Vue.watch(fApi, v => { self.fApi = v || null; });
+              const opt = Object.assign({}, self.form.formOption || {});
+              // 填写页统一使用页面自身的提交按钮，禁用表单内置按钮
+              opt.submitBtn = false;
+              opt.resetBtn = false;
+              // 表单选项在设计器里嵌套在 form 子对象（labelPosition/labelWidth 等）
+              opt.form = Object.assign({}, opt.form || {});
+              // 控件统一大尺寸（44px 级），移动端点按更准
+              if (!opt.form.size) opt.form.size = 'large';
+              if (window.innerWidth < 640) {
+                // 窄屏：标签顶部排列，长标签不换行
+                opt.form.labelPosition = 'top';
+                delete opt.form.labelWidth;
+              } else if (!opt.form.labelWidth) {
+                opt.form.labelWidth = 'auto';
+              }
+              return { fApi, rule: mainRule, option: opt, iconComp, titleText };
+            },
+            template: `
+              <form-create v-model:api="fApi" :rule="rule" :option="option">
+                <template #title="{ rule }">
+                  <component v-if="iconComp(rule)" :is="iconComp(rule)"
+                             style="vertical-align:-2.5px; margin-right:4px; width:1em; height:1em" />
+                  <span>{{ titleText(rule) }}</span>
+                </template>
+              </form-create>
+            `,
+          });
+          app.use(ElementPlus, { locale: ElementPlusLocaleZhCn });
+          app.use(formCreate);
+          try {
+            app.mount(container);
+            this._fcMain = app;
+            // 提交按钮下方的辅助组件区
+            this.mountTailForm(tailRule);
+          } catch (e) {
+            console.error(e);
+            this.closedTitle = '渲染失败';
+            this.closedMsg = '表单渲染出错，请联系表单创建者';
+            this.state = 'closed';
+          }
+        });
+      },
+      /** 提交按钮下方的辅助组件区（尾部实例） */
+      mountTailForm(tailRule) {
+        if (!tailRule.length) return;
+        const self = this;
+        // 按钮后如果还有字段，值与校验都走这个实例，提交时合并
+        const fApiRef = Vue.shallowRef(null);
+        Vue.watch(fApiRef, v => { self.fApiTail = v || null; });
+        if (this._fcTail) { try { this._fcTail.unmount(); } catch (e) { /* 已销毁 */ } this._fcTail = null; }
+        const prevBox = this.$refs.formEl && this.$refs.formEl.parentElement
+          ? this.$refs.formEl.parentElement.querySelector('.fill-tail') : null;
+        if (prevBox) prevBox.remove();
+        const box = document.createElement('div');
+        box.className = 'fill-tail';
+        const btn = this.$refs.formEl && this.$refs.formEl.parentElement
+          ? this.$refs.formEl.parentElement.querySelector('.fill-submit-btn') : null;
+        if (btn && btn.parentElement) btn.parentElement.insertBefore(box, btn.nextSibling);
+        else if (this.$refs.formEl && this.$refs.formEl.parentElement) this.$refs.formEl.parentElement.appendChild(box);
+        const app = Vue.createApp({
+          setup() {
+            const opt = Object.assign({}, self.form.formOption || {});
+            opt.submitBtn = false;
+            opt.resetBtn = false;
+            opt.form = Object.assign({}, opt.form || {});
+            if (window.innerWidth < 640) { opt.form.labelPosition = 'top'; delete opt.form.labelWidth; }
+            return { fApi: fApiRef, rule: tailRule, option: opt, iconComp, titleText };
+          },
+          template: `
+            <form-create v-model:api="fApi" :rule="rule" :option="option">
+              <template #title="{ rule }">
+                <component v-if="iconComp(rule)" :is="iconComp(rule)"
+                           style="vertical-align:-2.5px; margin-right:4px; width:1em; height:1em" />
+                <span>{{ titleText(rule) }}</span>
+              </template>
+            </form-create>
+          `,
+        });
+        app.use(ElementPlus, { locale: ElementPlusLocaleZhCn });
+        app.use(formCreate);
+        app.mount(box);
+        this._fcTail = app;
+      },
+      openService() {
+        const url = (this.service.link || '').trim();
+        if (!/^https?:\/\//i.test(url)) return ElementPlus.ElMessage.warning('客服链接配置不正确');
+        window.open(url, '_blank');
+      },
+      /**
+       * 提交入口：先校验表单字段，再按验证类型触发——
+       *   图码/短信 → 弹窗内完成；极验 → 直接拉起自带浮层；
+       *   无验证 → 直接提交
+       */
+      async submit() {
+        if (!this.fApi || this.submitting) return;
+        try {
+          await this.fApi.validate();
+          if (this.fApiTail) await this.fApiTail.validate();
+        } catch (e) {
+          return ElementPlus.ElMessage.error('请完善表单必填项');
+        }
+        if (this.captchaType === 'none') return this.doSubmit();
+        if (this.captchaType === 'geetest') {
+          if (this.geetCode) return this.doSubmit();
+          if (!this.geetestObj) {
+            return ElementPlus.ElMessage.error('人机验证组件加载中，请稍后重试');
+          }
+          this.pendingSubmit = true;
+          this.geetestObj.verify();
+          return;
+        }
+        if (this.captchaType === 'image' && !this.captchaImg) this.refreshCaptcha();
+        this.captchaOpen = true;
+      },
+      async doSubmit() {
+        if (!this.fApi || this.submitting) return;
+        // 弹窗内的兜底检查（正常交互下弹窗保证已填写）
+        if (this.captchaType === 'image' && !this.captchaCode.trim()) {
+          return ElementPlus.ElMessage.error('请输入图形验证码');
+        }
+        if (this.captchaType === 'sms' && !this.smsCode.trim()) {
+          return ElementPlus.ElMessage.error('请输入短信验证码');
+        }
+        const fd = this.allFormData();
+        // 上传失败时表单值里会残留 blob: 本地预览地址，提交前拦截并提示重传
+        const badUploads = Object.values(fd).some(v =>
+          Array.isArray(v) && v.some(x => typeof x === 'string' && x.indexOf('blob:') === 0));
+        if (badUploads) return ElementPlus.ElMessage.error('有文件未上传成功，请删除后重新上传');
+        const payload = { form: fd, __hp: this.honeypot };
+        if (channelCode) payload.__channel = channelCode;
+        if (this.form.needPassword) payload.__password = this.password;
+        if (this.captchaType === 'image') {
+          payload.__captcha_token = this.captchaToken;
+          payload.__captcha_code = this.captchaCode;
+        } else if (this.captchaType === 'sms') {
+          payload.__sms_code = this.smsCode;
+        } else if (this.captchaType === 'geetest') {
+          payload.__geetest = this.geetCode;
+        }
+        this.submitting = true;
+        try {
+          const res = await fetch('/api/fill/' + encodeURIComponent(slug) + '/submit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify(payload),
+          });
+          const data = await res.json();
+          if (data.code !== 0) {
+            ElementPlus.ElMessage.error(data.msg || '提交失败');
+            if (data.code === 4005) { // 重复提交
+              this.captchaOpen = false;
+              this.state = 'success';
+              this.successTitle = '已提交过';
+              this.successText = data.msg;
+              this.scheduleJump();
+            } else if (data.code === 4006) { // 验证码错误：弹窗保持打开，图码自动刷新
+              if (this.captchaType === 'image') this.refreshCaptcha();
+              if (this.captchaType === 'geetest') {
+                this.geetCode = null;
+                this.pendingSubmit = false;
+                if (this.geetestObj) this.geetestObj.reset();
+              }
+            }
+            return;
+          }
+          this.captchaOpen = false;
+          this.successTitle = '提交成功';
+          this.successText = data.msg || '感谢您的填写！';
+          this.state = 'success';
+          window.scrollTo(0, 0);
+          this.scheduleJump();
+        } catch (e) {
+          ElementPlus.ElMessage.error('网络异常，请稍后重试');
+        }
+        this.submitting = false;
+      },
+    },
+  })
+  .use(ElementPlus, { locale: ElementPlusLocaleZhCn })
+  .mount('#fill-app');
+})();
+</script>
+</body>
+</html>
