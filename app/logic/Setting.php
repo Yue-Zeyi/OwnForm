@@ -23,6 +23,12 @@ class Setting
         'geetest_captcha_key',
         'mail_pass',
         'ai_key',
+        'pay_wx_apiv3_key',
+        'pay_wx_mch_cert',      // apiclient_cert.pem 全文
+        'pay_wx_mch_key',       // apiclient_key.pem 全文
+        'pay_ali_private_key',      // 应用私钥 PEM 全文
+        'pay_ali_app_public_cert',  // 应用公钥证书全文
+        'pay_ali_public_cert',      // 支付宝公钥证书全文
     ];
 
     private static ?array $cache = null;

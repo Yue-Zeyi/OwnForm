@@ -192,3 +192,16 @@ export const runCleanup = (
   http.post<any, any>("/sys/cleanup", {
     data: { scopes, days }
   });
+
+/** ---------- 订单管理 ---------- */
+export const getOrders = (params: Record<string, any>) =>
+  http.get<any, any>("/orders", { params });
+export const getOrderStats = () => http.get<any, any>("/orders/stats");
+export const getOrder = (id: number | string) =>
+  http.get<any, any>(`/orders/${id}`);
+export const verifyOrder = (id: number) =>
+  http.post<any, any>(`/orders/${id}/verify`, { data: {} });
+export const refundOrder = (id: number, reason: string) =>
+  http.post<any, any>(`/orders/${id}/refund`, { data: { reason } });
+export const cancelOrder = (id: number) =>
+  http.post<any, any>(`/orders/${id}/cancel`, { data: {} });

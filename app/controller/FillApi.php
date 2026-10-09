@@ -48,6 +48,8 @@ class FillApi extends BaseController
             ],
             // 表单内关联的页面/链接入口
             'links'         => self::normalizeLinks($settings['links'] ?? []),
+            // 收费信息：开启时下发可用渠道与展示价格（金额以下单时服务端计算为准）
+            'pay'           => self::payInfo($form, $settings),
             // 提交成功后的跳转配置（page 类型下发 slug，由前端拼成 /p/{slug}）
             'afterSubmit'   => [
                 'type'   => in_array($settings['afterSubmit']['type'] ?? 'none', ['page', 'url'], true)
@@ -56,6 +58,35 @@ class FillApi extends BaseController
                 'delay'  => (int)($settings['afterSubmit']['delay'] ?? 3),
             ],
         ]);
+    }
+
+    /**
+     * 收费信息下发（read 接口）：enabled + 可用渠道 + 展示价格
+     */
+    private static function payInfo(array $form, array $settings): array
+    {
+        $payConfig = \app\logic\OrderUtil::payConfig($form);
+        if (!$payConfig) {
+            return ['enabled' => false];
+        }
+        $channels = \app\logic\Pay::enabledChannels();
+        $amount = null;
+        $amountFrom = null;
+        if (($payConfig['mode'] ?? 'fixed') === 'fixed') {
+            $amount = round((float)($payConfig['amount'] ?? 0), 2);
+        }
+        return [
+            'enabled'    => true,
+            'channels'   => $channels,
+            'channelNames' => array_map(
+                fn($c) => \app\logic\Pay::CHANNEL_NAMES[$c] ?? $c,
+                $channels
+            ),
+            'amount'     => $amount,
+            'mode'       => (string)($payConfig['mode'] ?? 'fixed'),
+            'optionField' => (string)($payConfig['option_field'] ?? ''),
+            'successText' => (string)($payConfig['success_text'] ?? ''),
+        ];
     }
 
     /**
@@ -172,19 +203,19 @@ class FillApi extends BaseController
     /**
      * 提交
      */
-    public function submit(string $slug)
+    /** 最近一次 preCheck / validateAndClean 的失败原因（pay 下单流程复用） */
+    public string $lastError = '';
+
+    /**
+     * 提交前置校验：限频 / 蜜罐 / 提交验证 / 访问密码 / 限一次
+     * submit 与支付下单共用；蜜罐命中返回 true 且 lastError 置空串（调用方静默成功）
+     */
+    public function preCheck(string $slug, array $form, array $settings, array $data): bool
     {
-        $form = self::loadActiveForm($slug, true);
-        if (is_string($form)) {
-            return $this->fail($form, 4004);
-        }
-        $formId   = (int)$form['id'];
-        // 必须始终经过 normalizeSettings：仅在 json_decode 失败时兜底是不够的，
-        // 历史数据的 settings_json 可能只存了部分键，直接取值会触发 undefined key
-        $decoded = json_decode((string)$form['settings_json'], true);
-        $settings = FieldUtil::normalizeSettings(is_array($decoded) ? $decoded : []);
-        $ip       = $this->clientIp();
-        $device   = $this->request->isMobile() ? 'mobile' : 'pc';
+        $this->lastError = '';
+        $formId = (int)$form['id'];
+        $ip     = $this->clientIp();
+        $device = $this->request->isMobile() ? 'mobile' : 'pc';
 
         // 提交限频：同 IP 5 秒内仅 1 次，1 小时最多 30 次
         // 计数在任何校验之前就推进——否则失败请求（验证码错误、密码错误）
@@ -193,32 +224,35 @@ class FillApi extends BaseController
         $last   = (int)Cache::store('file')->get($rlKey . '_t', 0);
         $hourly = (int)Cache::store('file')->get($rlKey . '_h', 0);
         if (time() - $last < 5) {
-            return $this->fail('提交太快了，请稍等几秒');
+            $this->lastError = '提交太快了，请稍等几秒';
+            return false;
         }
         if ($hourly >= 30) {
-            return $this->fail('该网络提交次数已达上限，请稍后再试');
+            $this->lastError = '该网络提交次数已达上限，请稍后再试';
+            return false;
         }
         Cache::store('file')->set($rlKey . '_t', time(), 60);
         Cache::store('file')->set($rlKey . '_h', $hourly + 1, 3600);
 
-        $data = $this->input();
         // 蜜罐：隐藏字段有值视为机器人，静默丢弃
         if (trim((string)($data['__hp'] ?? '')) !== '') {
-            return $this->ok([], '提交成功');
+            return true; // lastError 保持空串，调用方按"成功"处理
         }
 
         // 提交验证（图像验证码 / 短信验证码 / 极验，按表单配置）
         $captchaErr = self::verifyCaptcha($settings, $data);
         if ($captchaErr !== null) {
             \app\logic\OpLog::write('fill', '提交被拦截', '表单#' . $formId . ' ' . $captchaErr, 0, 0, '访客');
-            return $this->fail($captchaErr, 4006);
+            $this->lastError = $captchaErr;
+            return false;
         }
 
         // 访问密码
         if ($settings['accessPassword'] !== '') {
             $pwd = (string)($data['__password'] ?? '');
             if (!hash_equals($settings['accessPassword'], $pwd)) {
-                return $this->fail('访问密码不正确');
+                $this->lastError = '访问密码不正确';
+                return false;
             }
         }
 
@@ -231,11 +265,20 @@ class FillApi extends BaseController
                 ->where('device', $device)
                 ->count();
             if ($exists > 0 || $this->request->cookie($cookieKey)) {
-                return $this->fail('您已提交过，请勿重复提交', 4005);
+                $this->lastError = '您已提交过，请勿重复提交';
+                return false;
             }
         }
+        return true;
+    }
 
-        // 字段校验与清洗
+    /**
+     * 字段校验与数据清洗（submit 与支付下单共用）
+     * @return array{0:?array,1:array,2:?string} [clean, values, error]；clean=null 表示失败
+     */
+    public function validateAndClean(array $form, array $data): array
+    {
+        $this->lastError = '';
         $rule    = json_decode((string)$form['fields_json'], true) ?: [];
         $fields  = FieldUtil::extractFields($rule);
         $values  = FieldUtil::unwrapValues($data);
@@ -249,11 +292,13 @@ class FillApi extends BaseController
             }
         }
         if ($missing) {
-            return $this->fail('请填写必填项：' . implode('、', $missing));
+            $this->lastError = '请填写必填项：' . implode('、', $missing);
+            return [null, $values, $this->lastError];
         }
         $clean = FieldUtil::sanitizeData($values, $fields);
         if (!$clean && $fields) {
-            return $this->fail('提交内容为空');
+            $this->lastError = '提交内容为空';
+            return [null, $values, $this->lastError];
         }
 
         // 上传字段：归一化为有效 URL 数组（兼容 limit=1 时前端提交的单字符串），
@@ -273,9 +318,46 @@ class FillApi extends BaseController
             if ($valid !== $v) {
                 $clean[$f['field']] = $valid;
                 if (!empty($f['required']) && !$valid) {
-                    return $this->fail('「' . ($f['title'] ?: $f['field']) . '」文件未上传成功，请重新上传后提交');
+                    $this->lastError = '「' . ($f['title'] ?: $f['field']) . '」文件未上传成功，请重新上传后提交';
+                    return [null, $values, $this->lastError];
                 }
             }
+        }
+        return [$clean, $values, null];
+    }
+
+    public function submit(string $slug)
+    {
+        $form = self::loadActiveForm($slug, true);
+        if (is_string($form)) {
+            return $this->fail($form, 4004);
+        }
+        $formId   = (int)$form['id'];
+        // 收费表单必须走支付下单流程（PayApi::order），防止绕过支付直接提交
+        if (\app\logic\OrderUtil::payConfig($form)) {
+            return $this->fail('该表单需支付后提交', 4008);
+        }
+        // 必须始终经过 normalizeSettings：仅在 json_decode 失败时兜底是不够的，
+        // 历史数据的 settings_json 可能只存了部分键，直接取值会触发 undefined key
+        $decoded = json_decode((string)$form['settings_json'], true);
+        $settings = FieldUtil::normalizeSettings(is_array($decoded) ? $decoded : []);
+        $ip       = $this->clientIp();
+        $device   = $this->request->isMobile() ? 'mobile' : 'pc';
+
+        $data = $this->input();
+        if (!$this->preCheck($slug, $form, $settings, $data)) {
+            // 蜜罐命中时静默成功
+            if ($this->lastError === '') {
+                return $this->ok([], '提交成功');
+            }
+            $err = $this->lastError;
+            $code = $err === '您已提交过，请勿重复提交' ? 4005 : 4006;
+            return $this->fail($err, $code);
+        }
+
+        [$clean, $values, $err] = $this->validateAndClean($form, $data);
+        if ($clean === null) {
+            return $this->fail($err);
         }
 
         // 审核模式：入库为待审核

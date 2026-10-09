@@ -151,6 +151,19 @@ export default [
         }
       },
       {
+        path: "/orders/index",
+        name: "Orders",
+        component: () => import("@/views/orders/index.vue"),
+        meta: {
+          title: "订单管理",
+          rank: 3.05,
+          icon: "ep/money",
+          showLink: true,
+          showParent: false,
+          parents: [{ title: "表单管理", path: "/forms/index" }]
+        }
+      },
+      {
         path: "/forms/stats/:id",
         name: "FormStats",
         component: () => import("@/views/stats/index.vue"),

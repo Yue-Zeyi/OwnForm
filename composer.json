@@ -26,7 +26,8 @@
         "topthink/think-filesystem": "^2.0|^3.0",
         "qcloud/cos-sdk-v5": "^2.6",
         "aliyuncs/oss-sdk-php": "^2.6",
-        "qiniu/php-sdk": "^7.9"
+        "qiniu/php-sdk": "^7.9",
+        "yansongda/pay": "^3.7"
     },
     "require-dev": {
         "topthink/think-dumper": "^1.0",

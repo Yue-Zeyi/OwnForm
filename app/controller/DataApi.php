@@ -35,6 +35,10 @@ class DataApi extends BaseController
         $value   = trim((string)input('value', ''));
         $status  = input('status', '');
         $flag    = input('flag', '');
+        $payStatus = input('pay_status', '');
+        if ($payStatus !== '' && $payStatus !== null) {
+            $query->where('s.pay_status', (int)$payStatus);
+        }
         // 排序：仅白名单字段（默认提交时间倒序）
         $sort = (string)input('sort', 'created_at');
         $sort = in_array($sort, ['created_at', 'id'], true) ? $sort : 'created_at';
@@ -81,6 +85,9 @@ class DataApi extends BaseController
         if ($flag !== '' && $flag !== null) {
             $query->where('flag', (int)$flag);
         }
+        if (isset($payStatus) && $payStatus !== '' && $payStatus !== null) {
+            $query->where('pay_status', (int)$payStatus);
+        }
         $channelFilter = input('channel_id', '');
         if ($channelFilter !== '' && $channelFilter !== null) {
             $query->where('channel_id', (int)$channelFilter);
@@ -96,7 +103,7 @@ class DataApi extends BaseController
         }
 
         $total = (clone $query)->count();
-        $list  = $query->field('id, channel_id, data_json, ip, device, user_agent, status, flag, remark, created_at, deleted_at')
+        $list  = $query->field('id, channel_id, data_json, ip, device, user_agent, status, pay_status, order_no, flag, remark, created_at, deleted_at')
             ->page($page, $size)
             ->order($sort, $order)
             ->select()
@@ -117,6 +124,8 @@ class DataApi extends BaseController
                 'ip'          => $row['ip'],
                 'device'      => $row['device'],
                 'status'      => (int)$row['status'],
+                'payStatus'   => (int)($row['pay_status'] ?? 0),
+                'orderNo'     => (string)($row['order_no'] ?? ''),
                 'flag'        => (int)$row['flag'],
                 'remark'      => (string)$row['remark'],
                 'channelId'   => $chId,
@@ -144,6 +153,7 @@ class DataApi extends BaseController
             'size'  => $size,
             'fields' => $fields,
             'needReview' => $needReview,
+            'payConfig'  => \app\logic\OrderUtil::payConfig($form),
             'deleted' => $deleted,
             // 当前用户对该表单的数据权限（前端控制按钮显隐）
             'perm' => [
@@ -378,7 +388,7 @@ class DataApi extends BaseController
         }
 
         $total = (clone $query)->count();
-        $list  = $query->field('s.id, s.form_id, f.title as form_title, s.data_json, s.device, s.status, s.flag, s.remark, s.created_at')
+        $list  = $query->field('s.id, s.form_id, f.title as form_title, s.data_json, s.device, s.status, s.pay_status, s.order_no, s.flag, s.remark, s.created_at')
             ->page($page, $size)
             ->order('s.id', 'desc')
             ->select()

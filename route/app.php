@@ -110,6 +110,23 @@ Route::delete('api/logs', 'LogApi/clear')->middleware(\app\middleware\AdminAuth:
 // ---------- 公开填写 ----------
 Route::get('api/fill/:slug', 'FillApi/read');
 Route::post('api/fill/:slug/submit', 'FillApi/submit');
+Route::post('api/fill/:slug/order', 'PayApi/order');
+Route::get('api/fill/order/:orderNo/status', 'PayApi/status');
+Route::post('api/fill/order/:orderNo/voucher', 'PayApi/voucher');
+Route::post('api/fill/order/:orderNo/transfer-done', 'PayApi/transferDone');
+Route::get('s/pay/return', 'PayApi/payReturn');
+
+// ---------- 支付回调（渠道服务器调用，无会话无 CSRF） ----------
+Route::post('api/pay/notify/wechat', 'PayApi/notifyWechat');
+Route::post('api/pay/notify/alipay', 'PayApi/notifyAlipay');
+
+// ---------- 订单管理（管理端） ----------
+Route::get('api/orders/stats', 'OrderApi/stats')->middleware(\app\middleware\AdminAuth::class);
+Route::get('api/orders', 'OrderApi/index')->middleware(\app\middleware\AdminAuth::class);
+Route::get('api/orders/:id', 'OrderApi/read')->middleware(\app\middleware\AdminAuth::class);
+Route::post('api/orders/:id/verify', 'OrderApi/verify')->middleware(\app\middleware\AdminAuth::class);
+Route::post('api/orders/:id/refund', 'OrderApi/refund')->middleware(\app\middleware\AdminAuth::class);
+Route::post('api/orders/:id/cancel', 'OrderApi/cancel')->middleware(\app\middleware\AdminAuth::class);
 Route::post('api/fill/:slug/sms-code', 'FillApi/smsCode');
 Route::get('api/captcha', 'FillApi/captcha');
 

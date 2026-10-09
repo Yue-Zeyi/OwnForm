@@ -5,7 +5,8 @@ import {
   nextTick,
   onMounted,
   onBeforeUnmount,
-  onErrorCaptured
+  onErrorCaptured,
+  watch
 } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { message } from "@/utils/message";
@@ -96,7 +97,11 @@ function normalizeSettingsView(s: any) {
       s.afterSubmit || {}
     ),
     links: Array.isArray(s.links) ? s.links.map((l: any) => ({ ...l })) : [],
-    formOption: s.formOption || {}
+    formOption: s.formOption || {},
+    payConfig: Object.assign(
+      { enabled: false, mode: "fixed", amount: 0, optionField: "", optionPrices: {}, successText: "支付成功，感谢您的支持！" },
+      s.payConfig || {}
+    )
   };
 }
 
@@ -125,9 +130,64 @@ function collect() {
 
 /* 从设计器规则中收集文本字段（短信验证手机号候选） */
 const phoneFields = ref<{ field: string; title: string }[]>([]);
+/** 可定价字段（单选框/下拉，选项来自字段配置） */
+const priceFields = ref<{ field: string; title: string; options: { label: string; value: string }[] }[]>([]);
+
+/** 选项定价行：与 settings.payConfig.optionPrices（{选项: 价格}）双向同步 */
+const payPriceRows = ref<{ label: string; price: number; fromField: boolean }[]>([]);
+watch(
+  () => settings.value.payConfig?.optionPrices,
+  (prices) => {
+    if (!settings.value.payConfig) return;
+    const map = (prices as Record<string, number>) || {};
+    const cur = payPriceRows.value;
+    // 仅当外部整体替换（打开设置/切换字段）时重建，避免输入时抖动
+    const keys = Object.keys(map);
+    if (
+      cur.length !== keys.length ||
+      cur.some((r, i) => !keys[i] || keys[i] !== r.label)
+    ) {
+      payPriceRows.value = keys.map((k) => ({
+        label: k,
+        price: Number(map[k]) || 0,
+        fromField: false
+      }));
+    }
+  },
+  { immediate: true }
+);
+watch(payPriceRows, (rows) => {
+  if (!settings.value.payConfig) return;
+  const map: Record<string, number> = {};
+  rows.forEach((r) => {
+    if (r.label.trim() !== "" && r.price > 0) map[r.label.trim()] = r.price;
+  });
+  settings.value.payConfig.optionPrices = map;
+}, { deep: true });
+
+/** 选定定价字段后，用该字段的选项预填价格行（价格留 0 待填） */
+function onPayFieldChange(field: string) {
+  const f = priceFields.value.find((x) => x.field === field);
+  const keep = settings.value.payConfig?.optionPrices || {};
+  const rows: { label: string; price: number; fromField: boolean }[] = [];
+  (f?.options || []).forEach((o) => {
+    rows.push({
+      label: o.label || o.value,
+      price: Number(keep[o.label || o.value]) || 0,
+      fromField: true
+    });
+  });
+  payPriceRows.value = rows;
+}
+function addPayPriceRow() {
+  payPriceRows.value.push({ label: "", price: 0, fromField: false });
+}
+
 function collectPhoneFields() {
   const out: { field: string; title: string }[] = [];
+  priceFields.value = [];
   const seen: Record<string, number> = {};
+  const pseen: Record<string, number> = {};
   let rule: any[] = [];
   try {
     rule = designer.value ? designer.value.getRule() : form.fields || [];
@@ -146,6 +206,49 @@ function collectPhoneFields() {
         out.push({
           field: n.field,
           title: (typeof n.title === "string" ? n.title : n.field) || n.field
+        });
+      }
+      // 收集单选/下拉字段及其选项（供选项定价使用）
+      if (
+        n.field &&
+        !pseen[n.field] &&
+        (n.type === "radio" || n.type === "select")
+      ) {
+        pseen[n.field] = 1;
+        const opts: { label: string; value: string }[] = [];
+        const po =
+          n.props && (n.props.options || (n.props.formCreateChild || []
+            ).length)
+            ? n.props.options
+            : null;
+        const list = Array.isArray(po)
+          ? po
+          : Array.isArray(n.children)
+            ? n.children
+            : [];
+        list.forEach((o: any) => {
+          if (!o) return;
+          if (o.type === "option" || (o.props && "value" in (o.props || {}))) {
+            const lbl =
+              (typeof o.title === "object" ? o.title?.() : o.title) ||
+              (typeof o.props?.formCreateChild === "function"
+                ? o.props.formCreateChild()
+                : o.props?.formCreateChild);
+            opts.push({
+              label: String(lbl || o.value || ""),
+              value: String(o.value ?? "")
+            });
+          } else if (typeof o === "object" && ("label" in o || "value" in o)) {
+            opts.push({
+              label: String(o.label ?? o.value ?? ""),
+              value: String(o.value ?? "")
+            });
+          }
+        });
+        priceFields.value.push({
+          field: n.field,
+          title: (typeof n.title === "string" ? n.title : n.field) || n.field,
+          options: opts
         });
       }
       if (Array.isArray(n.children)) walk(n.children);

@@ -35,6 +35,20 @@ class SysApi extends BaseController
         'ai_model'             => '',
         'ai_key'               => '',
         'ai_temperature'       => '0.7',
+        // 支付：渠道能力勾选（JSON 数组，非敏感）
+        // wxpay_native/wxpay_h5/alipay_page/alipay_fce/alipay_wap/transfer
+        'pay_channels'         => '[]',
+        // 支付：微信商户（AppID/商户号/证书序列号非敏感；密钥类走 SECRET_KEYS 加密）
+        'pay_wx_app_id'        => '',
+        'pay_wx_mch_id'        => '',
+        'pay_wx_serial_no'     => '',
+        // 支付：支付宝应用
+        'pay_ali_app_id'       => '',
+        // 支付：转账核销
+        'pay_transfer_name'    => '',
+        'pay_transfer_account' => '',
+        'pay_transfer_qr'      => '',
+        'pay_transfer_tip'     => '',
         // 品牌定制（白标）
         'sys_name'             => 'OwnForm',
         'sys_logo'             => '',

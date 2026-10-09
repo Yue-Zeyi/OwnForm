@@ -51,7 +51,9 @@ CREATE TABLE IF NOT EXISTS `{{prefix}}form_submissions` (
   `ip` VARCHAR(45) NOT NULL DEFAULT '',
   `user_agent` VARCHAR(500) NOT NULL DEFAULT '',
   `device` VARCHAR(10) NOT NULL DEFAULT '' COMMENT 'pc / mobile',
-  `status` TINYINT NOT NULL DEFAULT 1 COMMENT '1正常 0待审核/隐藏',
+  `status` TINYINT NOT NULL DEFAULT 1 COMMENT '1正常 0待审核/隐藏 2待支付',
+  `pay_status` TINYINT NOT NULL DEFAULT 0 COMMENT '0无需支付 1待支付 2已支付 3待核销 4已退款',
+  `order_no` VARCHAR(32) NOT NULL DEFAULT '' COMMENT '关联支付订单号',
   `flag` TINYINT NOT NULL DEFAULT 0 COMMENT '旗标：0无 1红 2橙 3黄 4绿 5蓝 6紫',
   `remark` VARCHAR(500) NOT NULL DEFAULT '' COMMENT '备注',
   `created_at` DATETIME DEFAULT NULL,
@@ -67,6 +69,35 @@ CREATE TABLE IF NOT EXISTS `{{prefix}}form_submissions` (
   KEY `idx_form_deleted` (`form_id`, `deleted_at`),
   KEY `idx_form_channel` (`form_id`, `channel_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='表单提交数据';
+
+CREATE TABLE IF NOT EXISTS `{{prefix}}form_orders` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `order_no` VARCHAR(32) NOT NULL COMMENT '业务订单号（日期+随机，防遍历）',
+  `form_id` INT UNSIGNED NOT NULL,
+  `submission_id` BIGINT UNSIGNED NULL DEFAULT NULL COMMENT '关联提交（支付成功后转正式）',
+  `amount` DECIMAL(10,2) NOT NULL DEFAULT '0.00' COMMENT '应收金额',
+  `status` TINYINT NOT NULL DEFAULT 0 COMMENT '0待支付 1已支付 2已取消 3已退款 4待核销(转账)',
+  `pay_type` VARCHAR(20) NOT NULL DEFAULT '' COMMENT 'wxpay_native/wxpay_h5/alipay_page/alipay_fce/alipay_wap/transfer',
+  `trade_no` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '渠道交易号',
+  `refund_no` VARCHAR(32) NOT NULL DEFAULT '' COMMENT '退款单号',
+  `refund_amount` DECIMAL(10,2) NOT NULL DEFAULT '0.00' COMMENT '已退金额',
+  `voucher` VARCHAR(500) NOT NULL DEFAULT '' COMMENT '转账凭证图片（相对路径）',
+  `buyer_id` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '买家标识（openid/支付宝账号，可空）',
+  `paid_at` DATETIME DEFAULT NULL,
+  `refunded_at` DATETIME DEFAULT NULL,
+  `expire_at` DATETIME DEFAULT NULL COMMENT '待支付截止时间',
+  `verify_by` INT UNSIGNED NULL DEFAULT NULL COMMENT '转账核销人',
+  `verify_at` DATETIME DEFAULT NULL,
+  `remark` VARCHAR(255) NOT NULL DEFAULT '' COMMENT '后台备注（核销/退款原因）',
+  `notify_log` TEXT NULL COMMENT '回调原始报文（排障/对账）',
+  `created_at` DATETIME DEFAULT NULL,
+  `updated_at` DATETIME DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_order_no` (`order_no`),
+  KEY `idx_form_status` (`form_id`, `status`),
+  KEY `idx_submission` (`submission_id`),
+  KEY `idx_paid_at` (`paid_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='表单支付订单';
 
 CREATE TABLE IF NOT EXISTS `{{prefix}}form_channels` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,

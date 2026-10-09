@@ -61,6 +61,18 @@ body {
   box-shadow: 0 8px 20px var(--of-glow);
   transition: transform .15s ease, filter .2s ease, box-shadow .2s ease; }
 .fill-submit-btn:hover { filter: brightness(1.06); }
+.pay-amount { text-align:center; font-size: 34px; font-weight: 700; color: #1f2d3d; margin: 4px 0 10px; }
+.pay-choose-tip { text-align: center; color: #6b7a90; font-size: 13.5px; margin-bottom: 12px; }
+.pay-channel-list { display: flex; flex-direction: column; gap: 10px; }
+.pay-channel { border: 1.5px solid #e6edf5; border-radius: 10px; padding: 12px 16px; cursor: pointer; font-size: 15px; transition: .15s; text-align: center; }
+.pay-channel:hover { border-color: var(--of-primary, #409eff); }
+.pay-channel.active { border-color: var(--of-primary, #409eff); background: rgba(64,158,255,.06); color: var(--of-primary, #409eff); font-weight: 600; }
+.pay-center { text-align: center; padding: 6px 0; }
+.pay-center .ico { font-size: 40px; }
+.pay-tip { color: #6b7a90; font-size: 13.5px; margin-top: 8px; line-height: 1.8; }
+.pay-transfer-ops { display: flex; gap: 10px; justify-content: center; margin-top: 14px; }
+.pay-countdown { text-align: center; color: #6b7a90; font-size: 13px; margin-top: 12px; }
+.pay-countdown b { color: #e6a23c; }
 .fill-submit-btn:active { transform: scale(.975); box-shadow: 0 4px 12px var(--of-glow); }
 
 /* ---------- 安全验证弹窗（提交时触发） ---------- */
@@ -274,6 +286,124 @@ body {
       >确认提交</el-button>
     </div>
   </el-dialog>
+      <!-- 支付弹窗：渠道选择 / 扫码 / 转账 -->
+      <el-dialog
+        v-model="payOpen"
+        title="提交需要支付"
+        width="400px"
+        :close-on-click-modal="false"
+        @closed="stopPayTimers"
+      >
+        <template v-if="payStep === 'select'">
+          <div
+            v-if="form.pay && form.pay.amount != null"
+            class="pay-amount"
+          >
+            ￥{{ form.pay.amount }}
+          </div>
+          <div class="pay-choose-tip">请选择支付方式</div>
+          <div class="pay-channel-list">
+            <div
+              v-for="c in form.pay.channels"
+              :key="c"
+              class="pay-channel"
+              :class="{ active: payType === c }"
+              @click="payType = c"
+            >
+              {{ channelName(c) }}
+            </div>
+          </div>
+          <el-button
+            type="primary"
+            class="fill-submit-btn"
+            style="margin-top: 16px"
+            :loading="submitting"
+            @click="createOrder"
+          >
+            去支付
+          </el-button>
+        </template>
+        <template v-else-if="payStep === 'paying'">
+          <template v-if="payPayload && payPayload.redirect">
+            <div class="pay-center">
+              <div class="ico">🔗</div>
+              <p>已在新窗口打开支付页面</p>
+              <el-button size="small" @click="openRedirect">
+                重新打开支付页
+              </el-button>
+            </div>
+          </template>
+          <template v-else-if="payPayload && payPayload.qr">
+            <div class="pay-center">
+              <div
+                id="pay-qr-box"
+                style="
+                  display: inline-block;
+                  background: #fff;
+                  padding: 10px;
+                  border-radius: 8px;
+                "
+              ></div>
+              <p class="pay-tip">
+                请使用{{
+                  payType.indexOf("wx") === 0 ? "微信" : "支付宝"
+                }}扫码支付
+              </p>
+            </div>
+          </template>
+          <template v-else>
+            <div class="pay-center" v-if="payPayload && payPayload.transfer">
+              <img
+                v-if="payPayload.transfer.qr"
+                :src="payPayload.transfer.qr"
+                style="width: 180px; border-radius: 8px"
+              />
+              <p
+                class="pay-tip"
+                v-if="payPayload.transfer.name || payPayload.transfer.account"
+              >
+                收款人：{{ payPayload.transfer.name || "-" }}<br />
+                账号：{{ payPayload.transfer.account || "-" }}
+              </p>
+              <p class="pay-tip" v-if="payPayload.transfer.tip">
+                {{ payPayload.transfer.tip }}
+              </p>
+            </div>
+            <div class="pay-transfer-ops">
+              <input
+                type="file"
+                ref="voucherInput"
+                accept="image/png,image/jpeg,image/webp"
+                style="display: none"
+                @change="uploadVoucher"
+              />
+              <el-button
+                :loading="voucherUploading"
+                @click="$refs.voucherInput.click()"
+              >
+                {{ voucherUrl ? "已上传凭证 ✓" : "上传转账凭证（选填）" }}
+              </el-button>
+              <el-button
+                type="primary"
+                :loading="transferSubmitting"
+                @click="confirmTransfer"
+              >
+                我已完成转账
+              </el-button>
+            </div>
+          </template>
+          <div class="pay-countdown" v-if="payCountdown > 0">
+            订单保留时间：<b>{{ countdownText }}</b>
+          </div>
+        </template>
+        <template v-else-if="payStep === 'waitverify'">
+          <div class="pay-center">
+            <div class="ico">🧾</div>
+            <p>已收到您的转账凭证</p>
+            <p class="pay-tip">确认到账后提交即正式生效</p>
+          </div>
+        </template>
+      </el-dialog>
 
   <!-- 客服浮窗 -->
   <template v-if="state === 'form' && service.type !== 'none'">
@@ -300,6 +430,7 @@ body {
 <script src="/static/vendor/element-plus-zh-cn.min.js?v=1.4.15"></script>
 <script src="/static/vendor/element-plus-icons.min.js?v=1.4.15"></script>
 <script src="/static/vendor/form-create.min.js?v=1.4.15"></script>
+<script src="/static/vendor/qrcode.min.js?v=1.4.15"></script>
 <script>
 (function () {
   'use strict';
@@ -365,6 +496,10 @@ body {
         theme: '#409eff',
         password: '',
         submitting: false,
+        payOpen: false, payStep: 'select', payType: '', payPayload: null,
+        payExpireMinutes: 15, payCountdown: 0, pollTimer: null, countdownTimer: null,
+        voucherUrl: '', voucherUploading: false, transferSubmitting: false,
+        pendingPayPayload: null,
         honeypot: '',
         fApi: null,
         limitOnce: false,
@@ -397,6 +532,11 @@ body {
       };
     },
     computed: {
+      countdownText() {
+        const m = Math.floor(this.payCountdown / 60);
+        const sec = this.payCountdown % 60;
+        return m + ':' + String(sec).padStart(2, '0');
+      },
       smsPhoneMasked() {
         if (!this.fApi || !this.form.smsPhoneField) return '';
         const fd = this.allFormData();
@@ -771,6 +911,138 @@ body {
        *   图码/短信 → 弹窗内完成；极验 → 直接拉起自带浮层；
        *   无验证 → 直接提交
        */
+      /* ---------- 支付流程 ---------- */
+      openRedirect() {
+        const p = this.payPayload;
+        if (!p || !p.redirect) return;
+        if (p.redirect.indexOf('html:') === 0) {
+          const w = window.open('', '_blank');
+          if (!w) { ElementPlus.ElMessage.error('浏览器拦截了新窗口，请允许弹出后重试'); return; }
+          w.document.write(p.redirect.slice(5));
+          w.document.close();
+        } else {
+          window.open(p.redirect, '_blank');
+        }
+      },
+      startPayTimers() {
+        this.stopPayTimers();
+        this.payCountdown = (this.payExpireMinutes || 15) * 60;
+        this.countdownTimer = setInterval(() => {
+          if (this.payCountdown > 0) this.payCountdown--;
+          if (this.payCountdown <= 0) {
+            this.stopPayTimers();
+            this.payOpen = false;
+            ElementPlus.ElMessage.error('订单已超时，请重新提交');
+          }
+        }, 1000);
+        this.pollTimer = setInterval(() => this.pollOrder(), 2000);
+        this.pollOrder();
+      },
+      stopPayTimers() {
+        if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
+        if (this.countdownTimer) { clearInterval(this.countdownTimer); this.countdownTimer = null; }
+      },
+      async pollOrder() {
+        if (!this.payPayload) return;
+        try {
+          const res = await fetch('/api/fill/order/' + encodeURIComponent(this.payPayload.orderNo) + '/status');
+          const d = await res.json();
+          if (d.code !== 0) return;
+          if (d.data.status === 1) {
+            this.stopPayTimers();
+            this.payOpen = false;
+            this.onPaid(d.data);
+          } else if (d.data.status === 4) {
+            this.stopPayTimers();
+            this.payStep = 'waitverify';
+          } else if (d.data.status === 2) {
+            this.stopPayTimers();
+            this.payOpen = false;
+            ElementPlus.ElMessage.error('订单已取消，请重新提交');
+          }
+        } catch (e) { /* 轮询失败忽略，下轮重试 */ }
+      },
+      onPaid(info) {
+        this.captchaOpen = false;
+        this.successTitle = '支付成功';
+        this.successText = (this.form.pay && this.form.pay.successText)
+          || ('支付金额 ¥' + Number(info.amount).toFixed(2));
+        this.state = 'success';
+        window.scrollTo(0, 0);
+        this.scheduleJump();
+      },
+      async createOrder() {
+        if (!this.payType) return ElementPlus.ElMessage.error('请选择支付方式');
+        this.submitting = true;
+        try {
+          const res = await fetch('/api/fill/' + encodeURIComponent(slug) + '/order', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify(Object.assign({ pay_type: this.payType }, this.pendingPayPayload)),
+          });
+          const d = await res.json();
+          if (d.code !== 0) {
+            ElementPlus.ElMessage.error(d.msg || '下单失败');
+            if (d.code === 4006 && this.captchaType === 'image') this.refreshCaptcha();
+            return;
+          }
+          this.payPayload = d.data;
+          this.payExpireMinutes = d.data.expireMinutes || 15;
+          this.payStep = 'paying';
+          if (d.data.qr) {
+            this.$nextTick(() => {
+              const box = document.getElementById('pay-qr-box');
+              if (box) { box.innerHTML = ''; new QRCode(box, { text: d.data.qr, width: 190, height: 190, correctLevel: QRCode.CorrectLevel.M }); }
+            });
+          } else if (d.data.redirect) {
+            this.openRedirect();
+          }
+          this.startPayTimers();
+        } catch (e) {
+          ElementPlus.ElMessage.error('网络异常，请稍后重试');
+        }
+        this.submitting = false;
+      },
+      channelName(c) {
+        return (this.form.pay && this.form.pay.channelNames && this.form.pay.channelNames[c]) || c;
+      },
+      async uploadVoucher(ev) {
+        const file = ev.target.files && ev.target.files[0];
+        ev.target.value = '';
+        if (!file || !this.payPayload) return;
+        this.voucherUploading = true;
+        try {
+          const fd = new FormData();
+          fd.append('file', file);
+          const res = await fetch('/api/fill/order/' + encodeURIComponent(this.payPayload.orderNo) + '/voucher', {
+            method: 'POST', body: fd, credentials: 'same-origin',
+          });
+          const d = await res.json();
+          if (d.code !== 0) return ElementPlus.ElMessage.error(d.msg || '凭证上传失败');
+          this.voucherUrl = d.data.url;
+          ElementPlus.ElMessage.success('凭证已上传');
+        } catch (e) {
+          ElementPlus.ElMessage.error('网络异常，请稍后重试');
+        }
+        this.voucherUploading = false;
+      },
+      async confirmTransfer() {
+        if (!this.payPayload) return;
+        this.transferSubmitting = true;
+        try {
+          const res = await fetch('/api/fill/order/' + encodeURIComponent(this.payPayload.orderNo) + '/transfer-done', {
+            method: 'POST', credentials: 'same-origin',
+          });
+          const d = await res.json();
+          if (d.code !== 0) return ElementPlus.ElMessage.error(d.msg || '操作失败');
+          this.stopPayTimers();
+          this.payStep = 'waitverify';
+        } catch (e) {
+          ElementPlus.ElMessage.error('网络异常，请稍后重试');
+        }
+        this.transferSubmitting = false;
+      },
       async submit() {
         if (!this.fApi || this.submitting) return;
         try {
@@ -816,6 +1088,16 @@ body {
           payload.__sms_code = this.smsCode;
         } else if (this.captchaType === 'geetest') {
           payload.__geetest = this.geetCode;
+        }
+        // 收费表单：走下单支付流程（字段校验与防刷已在下拉/弹窗流程中完成）
+        if (this.form.pay && this.form.pay.enabled && this.form.pay.channels && this.form.pay.channels.length) {
+          this.pendingPayPayload = payload;
+          if (!this.payType || this.form.pay.channels.indexOf(this.payType) < 0) {
+            this.payType = this.form.pay.channels[0];
+          }
+          this.payStep = 'select';
+          this.payOpen = true;
+          return;
         }
         this.submitting = true;
         try {

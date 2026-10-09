@@ -45,6 +45,7 @@ const list = ref<any[]>([]);
 const total = ref(0);
 const lastVersionAt = ref<string>("");
 const needReview = ref(false);
+const payEnabled = ref(false);
 const pending = ref(0);
 const reviewTab = ref("1");
 const selection = ref<any[]>([]);
@@ -99,6 +100,7 @@ const query = reactive<any>({
   field: "",
   value: "",
   flag: "" as number | "",
+  pay_status: "" as number | "",
   channel_id: "" as number | "",
   start: "",
   end: "",
@@ -171,6 +173,7 @@ async function load(page?: number) {
       order: query.order || ""
     };
     if (query.channel_id !== "") params.channel_id = query.channel_id;
+    if (query.pay_status !== "" && query.pay_status !== undefined) params.pay_status = query.pay_status;
     if (query.deleted) {
       params.deleted = 1;
     } else {
@@ -204,6 +207,7 @@ async function load(page?: number) {
       colsInit = true;
     }
     needReview.value = !!d.needReview;
+    payEnabled.value = !!(d.payConfig && d.payConfig.enabled);
     pending.value = d.pending || 0;
     if (!form.value.id) form.value = await getForm(formId);
   } catch (e: any) {
@@ -220,6 +224,7 @@ function reset() {
   query.flag = "";
   query.channel_id = "";
   range.value = null;
+  query.pay_status = "";
   query.sort = "";
   query.order = "";
   load(1);
@@ -550,6 +555,19 @@ onMounted(() => load(1));
           />
         </el-select>
         <el-select
+          v-if="payEnabled"
+          v-model="query.pay_status"
+          placeholder="支付筛选"
+          clearable
+          style="width: 130px"
+          @change="load(1)"
+        >
+          <el-option label="待支付" :value="1" />
+          <el-option label="已支付" :value="2" />
+          <el-option label="待核销" :value="3" />
+          <el-option label="已退款" :value="4" />
+        </el-select>
+        <el-select
           v-if="channels.length"
           v-model="query.channel_id"
           placeholder="渠道筛选"
@@ -817,6 +835,20 @@ onMounted(() => load(1));
                     : "未知"
               }}
             </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column
+          v-if="payEnabled"
+          label="支付"
+          width="86"
+          align="center"
+        >
+          <template #default="{ row }">
+            <el-tag v-if="row.payStatus === 2" size="small" type="success">已支付</el-tag>
+            <el-tag v-else-if="row.payStatus === 1" size="small" type="info">待支付</el-tag>
+            <el-tag v-else-if="row.payStatus === 3" size="small" type="danger">待核销</el-tag>
+            <el-tag v-else-if="row.payStatus === 4" size="small" type="warning">已退款</el-tag>
+            <span v-else>—</span>
           </template>
         </el-table-column>
         <el-table-column

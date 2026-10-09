@@ -46,6 +46,8 @@ class Csrf
         'api/page/',
         // 引流活码：长按识别上报（访客无会话）
         'api/q/',
+        // 支付渠道异步回调（微信/支付宝服务器调用，无会话，自带验签）
+        'api/pay/notify/',
     ];
 
     public function handle($request, \Closure $next)

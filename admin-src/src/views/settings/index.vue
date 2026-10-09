@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted } from "vue";
+import { ref, reactive, onMounted, watch } from "vue";
 import { message } from "@/utils/message";
 import { ElMessageBox } from "element-plus";
 import {
@@ -54,6 +54,22 @@ const sys = reactive<any>({
   // 每日汇总邮件
   digest_enabled: "0",
   digest_email: "",
+  // 支付渠道（渠道勾选为 JSON 数组字符串，页面上用数组桥接）
+  pay_channels: "[]",
+  pay_wx_app_id: "",
+  pay_wx_mch_id: "",
+  pay_wx_serial_no: "",
+  pay_wx_apiv3_key: "",
+  pay_wx_mch_cert: "",
+  pay_wx_mch_key: "",
+  pay_ali_app_id: "",
+  pay_ali_private_key: "",
+  pay_ali_app_public_cert: "",
+  pay_ali_public_cert: "",
+  pay_transfer_name: "",
+  pay_transfer_account: "",
+  pay_transfer_qr: "",
+  pay_transfer_tip: "",
 
   storage_type: "local",
   storage_domain: "",
@@ -197,6 +213,42 @@ async function doTestNotify() {
     await save();
     await testNotify();
     message("测试消息已发送，请到对应群/接收端确认", { type: "success" });
+  } catch (e: any) {
+    message(e.message, { type: "error" });
+  }
+}
+
+/** 支付渠道勾选桥接：sys.pay_channels(JSON 字符串) ↔ 数组 */
+const payChannelArr = ref<string[]>([]);
+watch(payChannelArr, (v) => {
+  sys.pay_channels = JSON.stringify(v);
+});
+watch(
+  () => sys.pay_channels,
+  (v) => {
+    try {
+      const arr = JSON.parse(v || "[]");
+      if (JSON.stringify(arr) !== JSON.stringify(payChannelArr.value)) {
+        payChannelArr.value = Array.isArray(arr) ? arr : [];
+      }
+    } catch {
+      /* 忽略非法 JSON */
+    }
+  },
+  { immediate: true }
+);
+
+/** 上传转账收款码（复用素材上传接口，管理员身份） */
+async function uploadPayQr(opt: any) {
+  const fd = new FormData();
+  fd.append("file", opt.file);
+  fd.append("formId", "0");
+  try {
+    const d = await http.post<any, any>("/upload", fd, {
+      headers: { "Content-Type": "multipart/form-data" }
+    });
+    sys.pay_transfer_qr = d.url || d.path || "";
+    message("收款码已上传，记得保存设置", { type: "success" });
   } catch (e: any) {
     message(e.message, { type: "error" });
   }
@@ -762,6 +814,94 @@ onMounted(() => load());
               </el-button>
             </div>
           </el-form>
+
+          <el-divider content-position="left">支付（表单收费）</el-divider>
+          <div class="form-tip sec-tip">
+            勾选已具备的能力，表单设置里即可开启提交收费；商户密钥证书加密存储、仅回显掩码
+          </div>
+          <el-form label-width="140px" label-position="left" class="tab-form">
+            <el-form-item label="启用渠道">
+              <el-checkbox-group v-model="payChannelArr" style="width: 100%">
+                <el-checkbox value="wxpay_native">微信扫码（PC）</el-checkbox>
+                <el-checkbox value="wxpay_h5">微信 H5（手机浏览器）</el-checkbox>
+                <el-checkbox value="alipay_page">支付宝电脑网站</el-checkbox>
+                <el-checkbox value="alipay_fce">支付宝当面付（扫码）</el-checkbox>
+                <el-checkbox value="alipay_wap">支付宝手机网站</el-checkbox>
+                <el-checkbox value="transfer">转账 + 人工核销</el-checkbox>
+              </el-checkbox-group>
+              <div class="form-tip">
+                仅勾选你在下方完成配置且已开通的能力；回调地址由系统按域名池自动生成
+              </div>
+            </el-form-item>
+          </el-form>
+          <template v-if="payChannelArr.includes('wxpay_native') || payChannelArr.includes('wxpay_h5')">
+            <div class="pay-head">微信支付（商户号）</div>
+            <el-form label-width="140px" label-position="left" class="tab-form">
+              <el-form-item label="AppID（公众号/小程序）">
+                <el-input v-model="sys.pay_wx_app_id" placeholder="wx 开头" style="max-width: 320px" />
+              </el-form-item>
+              <el-form-item label="商户号 mch_id">
+                <el-input v-model="sys.pay_wx_mch_id" placeholder="16 开头数字" style="max-width: 320px" />
+              </el-form-item>
+              <el-form-item label="商户证书序列号">
+                <el-input v-model="sys.pay_wx_serial_no" placeholder="API 证书序列号" style="max-width: 420px" />
+              </el-form-item>
+              <el-form-item label="APIv3 密钥">
+                <el-input v-model="sys.pay_wx_apiv3_key" type="password" show-password placeholder="商户平台设置的 APIv3 密钥" style="max-width: 420px" />
+              </el-form-item>
+              <el-form-item label="商户证书内容">
+                <el-input v-model="sys.pay_wx_mch_cert" type="textarea" :rows="3" placeholder="apiclient_cert.pem 的完整内容（-----BEGIN CERTIFICATE-----）" />
+              </el-form-item>
+              <el-form-item label="商户私钥内容">
+                <el-input v-model="sys.pay_wx_mch_key" type="textarea" :rows="3" placeholder="apiclient_key.pem 的完整内容（-----BEGIN PRIVATE KEY-----）" />
+              </el-form-item>
+            </el-form>
+          </template>
+          <template v-if="payChannelArr.includes('alipay_page') || payChannelArr.includes('alipay_fce') || payChannelArr.includes('alipay_wap')">
+            <div class="pay-head">支付宝（开放平台应用）</div>
+            <el-form label-width="140px" label-position="left" class="tab-form">
+              <el-form-item label="AppID">
+                <el-input v-model="sys.pay_ali_app_id" placeholder="应用 APPID" style="max-width: 320px" />
+              </el-form-item>
+              <el-form-item label="应用私钥">
+                <el-input v-model="sys.pay_ali_private_key" type="textarea" :rows="3" placeholder="应用私钥 PEM 全文" />
+              </el-form-item>
+              <el-form-item label="应用公钥证书">
+                <el-input v-model="sys.pay_ali_app_public_cert" type="textarea" :rows="3" placeholder="应用公钥证书全文（-----BEGIN CERTIFICATE-----）" />
+              </el-form-item>
+              <el-form-item label="支付宝公钥证书">
+                <el-input v-model="sys.pay_ali_public_cert" type="textarea" :rows="3" placeholder="支付宝公钥证书全文（-----BEGIN CERTIFICATE-----）" />
+              </el-form-item>
+            </el-form>
+          </template>
+          <template v-if="payChannelArr.includes('transfer')">
+            <div class="pay-head">转账核销</div>
+            <el-form label-width="140px" label-position="left" class="tab-form">
+              <el-form-item label="收款人">
+                <el-input v-model="sys.pay_transfer_name" placeholder="如：*先生 / 公司名" style="max-width: 320px" />
+              </el-form-item>
+              <el-form-item label="收款账号">
+                <el-input v-model="sys.pay_transfer_account" placeholder="微信号 / 支付宝账号 / 银行卡号" style="max-width: 320px" />
+              </el-form-item>
+              <el-form-item label="收款码图片">
+                <div style="display: flex; gap: 12px; align-items: flex-start; width: 100%">
+                  <el-image v-if="sys.pay_transfer_qr" :src="sys.pay_transfer_qr" fit="contain" style="width: 96px; height: 96px; border: 1px solid #ebeef5; border-radius: 8px" />
+                  <div>
+                    <el-upload :show-file-list="false" accept="image/png,image/jpeg,image/webp" :http-request="uploadPayQr">
+                      <el-button size="small" type="primary" plain>上传收款码</el-button>
+                    </el-upload>
+                    <el-button v-if="sys.pay_transfer_qr" size="small" style="margin-left: 8px" @click="sys.pay_transfer_qr = ''">清除</el-button>
+                  </div>
+                </div>
+              </el-form-item>
+              <el-form-item label="提示语">
+                <el-input v-model="sys.pay_transfer_tip" type="textarea" :rows="2" placeholder="展示在收款码下方的说明，如：转账后点击「我已完成转账」" />
+              </el-form-item>
+            </el-form>
+          </template>
+          <div style="margin-top: 10px">
+            <el-button type="primary" :loading="saving" @click="save">保存支付配置</el-button>
+          </div>
         </el-tab-pane>
 
         <!-- 数据与合规 -->
@@ -970,6 +1110,15 @@ onMounted(() => load());
 /* 分区说明（分区标题下的一行灰字） */
 .sec-tip {
   margin: -4px 0 10px;
+}
+
+/* 支付分区小标题 */
+.pay-head {
+  font-size: 13.5px;
+  font-weight: 600;
+  margin: 14px 0 10px;
+  padding-left: 8px;
+  border-left: 3px solid var(--el-color-primary);
 }
 
 /* 手动清理：范围行 */

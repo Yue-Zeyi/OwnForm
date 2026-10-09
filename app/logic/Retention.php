@@ -68,6 +68,13 @@ class Retention
         // 2) 孤儿附件清理：所属表单已被彻底删除、且附件超过 30 天 → 一并清理
         $out['uploads'] = self::cleanOrphanUploads(30);
 
+        // 3) 支付订单超时作废（暂存提交一并进回收站）
+        try {
+            $out['orders'] = OrderUtil::cancelExpired();
+        } catch (\Throwable $e) {
+            Log::write('[retention] 订单超时清理失败: ' . $e->getMessage(), 'notice');
+        }
+
         return $out;
     }
 

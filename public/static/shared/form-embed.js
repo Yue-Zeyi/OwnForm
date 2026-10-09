@@ -469,6 +469,14 @@
           .then(function (r) { return r.json(); })
           .then(function (data) {
             if (data.code !== 0) {
+              if (data.code === 4008) {
+                // 付费表单：内嵌环境无法完成支付，引导到独立填写页
+                ElMessage.error('该表单为付费表单，请打开独立页面完成填写与支付');
+                setTimeout(function () {
+                  window.open('/s/' + self.formSlug, '_blank');
+                }, 1200);
+                return;
+              }
               ElMessage.error(data.msg || '提交失败');
               if (data.code === 4005) {
                 // 重复提交：按成功处理，避免访客反复看到错误
