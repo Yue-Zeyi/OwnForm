@@ -814,10 +814,14 @@ onMounted(() => load());
               </el-button>
             </div>
           </el-form>
+        </el-tab-pane>
 
-          <el-divider content-position="left">支付（表单收费）</el-divider>
-          <div class="form-tip sec-tip">
-            勾选已具备的能力，表单设置里即可开启提交收费；商户密钥证书加密存储、仅回显掩码
+        <!-- 支付：渠道勾选 / 微信 / 支付宝 / 转账核销 -->
+        <el-tab-pane label="支付" name="pay">
+          <div class="tab-head">
+            <span class="form-tip"
+              >表单提交收费的收款渠道配置：勾选已开通的能力，密钥证书加密存储、仅回显掩码</span
+            >
           </div>
           <el-form label-width="140px" label-position="left" class="tab-form">
             <el-form-item label="启用渠道">
