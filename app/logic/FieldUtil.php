@@ -124,6 +124,7 @@ class FieldUtil
             'service'        => ['type' => 'none', 'link' => '', 'qrcode' => ''],  // 在线客服
             'afterSubmit'   => ['type' => 'none', 'target' => '', 'delay' => 3], // 提交后跳转
             'links'         => [],                                          // 表单内关联页面/链接入口
+            'pay_config'    => ['enabled' => false],                        // 收费配置（开关/定价/选项价格/成功文案）
         ];
         $settings = array_intersect_key($settings, $defaults) + $defaults;
         $settings['limitOnce']      = (bool)$settings['limitOnce'];
@@ -138,6 +139,24 @@ class FieldUtil
         $settings['notify_emails']  = mb_substr(trim((string)$settings['notify_emails']), 0, 500);
         $settings['smsPhoneField']  = (string)$settings['smsPhoneField'];
         $settings['service']        = is_array($settings['service']) ? array_intersect_key($settings['service'], ['type' => 1, 'link' => 1, 'qrcode' => 1]) + ['type' => 'none', 'link' => '', 'qrcode' => ''] : ['type' => 'none', 'link' => '', 'qrcode' => ''];
+        // 收费配置规范化：只保留已知键，金额/选项价格强校验
+        $pay = is_array($settings['pay_config'] ?? null) ? $settings['pay_config'] : [];
+        $prices = [];
+        foreach ((array)($pay['optionPrices'] ?? []) as $label => $price) {
+            $label = mb_substr(trim((string)$label), 0, 50);
+            $price = round((float)$price, 2);
+            if ($label !== '' && $price > 0 && $price <= 99999) {
+                $prices[$label] = $price;
+            }
+        }
+        $settings['pay_config'] = [
+            'enabled'      => (bool)($pay['enabled'] ?? false),
+            'mode'         => in_array($pay['mode'] ?? 'fixed', ['fixed', 'options'], true) ? $pay['mode'] : 'fixed',
+            'amount'       => min(99999, max(0.01, round((float)($pay['amount'] ?? 0), 2))),
+            'optionField'  => mb_substr((string)($pay['optionField'] ?? ''), 0, 50),
+            'optionPrices' => $prices,
+            'successText'  => mb_substr((string)($pay['successText'] ?? ''), 0, 200),
+        ];
         $settings['service']['type'] = in_array($settings['service']['type'], ['none', 'link', 'qrcode'], true) ? $settings['service']['type'] : 'none';
         $settings['service']['link']   = (string)$settings['service']['link'];
         $settings['service']['qrcode'] = (string)$settings['service']['qrcode'];

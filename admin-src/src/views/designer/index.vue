@@ -100,7 +100,7 @@ function normalizeSettingsView(s: any) {
     formOption: s.formOption || {},
     payConfig: Object.assign(
       { enabled: false, mode: "fixed", amount: 0, optionField: "", optionPrices: {}, successText: "支付成功，感谢您的支持！" },
-      s.payConfig || {}
+      s.pay_config || s.payConfig || {}
     )
   };
 }
@@ -515,13 +515,19 @@ async function save(andPublish: boolean) {
   }
   saving.value = true;
   try {
+    const saveSettings = Object.assign({}, settings.value, {
+      formOption: payload.formOption
+    });
+    // 收费配置规范为下划线键（后端 OrderUtil 按 pay_config 读取）
+    saveSettings.pay_config = saveSettings.payConfig || saveSettings.pay_config || {
+      enabled: false
+    };
+    delete saveSettings.payConfig;
     const body = {
       title: form.title,
       description: form.description,
       fields: payload.fields,
-      settings: Object.assign({}, settings.value, {
-        formOption: payload.formOption
-      })
+      settings: saveSettings
     };
     if (form.id) {
       await updateForm(form.id, body);
@@ -870,6 +876,86 @@ onBeforeUnmount(() => {
             开启后新提交进入待审核，需在数据页手动通过后计入统计
           </div>
         </el-form-item>
+        <el-divider>收费支付</el-divider>
+        <el-form-item label="提交收费">
+          <el-switch v-model="settings.payConfig.enabled" />
+          <div class="form-tip" v-if="settings.payConfig.enabled" style="width: 100%">
+            开启后访客需先完成支付，提交才正式生效（先暂存，支付回调后转正式）
+          </div>
+        </el-form-item>
+        <template v-if="settings.payConfig.enabled">
+          <el-form-item label="定价模式">
+            <el-radio-group v-model="settings.payConfig.mode">
+              <el-radio value="fixed">固定金额</el-radio>
+              <el-radio value="options">按选项定价</el-radio>
+            </el-radio-group>
+          </el-form-item>
+          <el-form-item v-if="settings.payConfig.mode === 'fixed'" label="金额（元）">
+            <el-input-number
+              v-model="settings.payConfig.amount"
+              :min="0.01"
+              :max="99999"
+              :precision="2"
+              :step="10"
+              style="width: 180px"
+            />
+          </el-form-item>
+          <template v-else>
+            <el-form-item label="定价字段">
+              <el-select
+                v-model="settings.payConfig.optionField"
+                placeholder="选择表单中的单选/下拉字段"
+                style="width: 100%"
+                @change="onPayFieldChange"
+              >
+                <el-option
+                  v-for="f in priceFields"
+                  :key="f.field"
+                  :label="f.title"
+                  :value="f.field"
+                />
+              </el-select>
+              <div class="form-tip">
+                先在表单中添加单选/下拉字段后此处才会出现；没有请先保存表单
+              </div>
+            </el-form-item>
+            <el-form-item
+              v-for="(row, i) in payPriceRows"
+              :key="i"
+              :label="i === 0 ? '选项价格' : ''"
+            >
+              <div style="display: flex; gap: 8px; width: 100%">
+                <el-input
+                  v-model="row.label"
+                  placeholder="选项名称"
+                  style="flex: 1"
+                  :disabled="row.fromField"
+                />
+                <el-input-number
+                  v-model="row.price"
+                  :min="0.01"
+                  :max="99999"
+                  :precision="2"
+                  style="width: 130px"
+                />
+              </div>
+            </el-form-item>
+            <el-form-item v-if="settings.payConfig.optionField" label=" ">
+              <el-button size="small" @click="addPayPriceRow">添加选项</el-button>
+            </el-form-item>
+          </template>
+          <el-form-item label="支付成功文案">
+            <el-input
+              v-model="settings.payConfig.successText"
+              placeholder="支付成功，感谢您的支持！"
+            />
+          </el-form-item>
+          <el-alert
+            type="info"
+            :closable="false"
+            title="可用支付方式与收款账户在 系统设置 → 支付 中配置"
+          />
+        </template>
         <el-divider>提交验证</el-divider>
         <el-form-item label="验证方式">
           <el-radio-group v-model="settings.captcha">

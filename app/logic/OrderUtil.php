@@ -25,7 +25,9 @@ class OrderUtil
     public static function payConfig(array $form): ?array
     {
         $cfg = json_decode((string)($form['settings_json'] ?? '{}'), true);
-        $pay = is_array($cfg) ? ($cfg['pay_config'] ?? null) : null;
+        $pay = is_array($cfg)
+            ? ($cfg['pay_config'] ?? $cfg['payConfig'] ?? null)
+            : null;
         if (!is_array($pay) || empty($pay['enabled'])) {
             return null;
         }
