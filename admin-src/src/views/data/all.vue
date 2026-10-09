@@ -16,6 +16,7 @@ import {
 import {
   extractFields,
   toUploadUrls,
+  flagSvgHtml,
   FLAG_COLORS
 } from "@/utils/formRule";
 
