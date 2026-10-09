@@ -149,9 +149,11 @@ class FieldUtil
                 $prices[$label] = $price;
             }
         }
+        $payMode = in_array($pay['mode'] ?? 'fixed', ['fixed', 'options'], true)
+            ? ($pay['mode'] ?? 'fixed') : 'fixed';
         $settings['pay_config'] = [
             'enabled'      => (bool)($pay['enabled'] ?? false),
-            'mode'         => in_array($pay['mode'] ?? 'fixed', ['fixed', 'options'], true) ? $pay['mode'] : 'fixed',
+            'mode'         => $payMode,
             'amount'       => min(99999, max(0.01, round((float)($pay['amount'] ?? 0), 2))),
             'optionField'  => mb_substr((string)($pay['optionField'] ?? ''), 0, 50),
             'optionPrices' => $prices,
