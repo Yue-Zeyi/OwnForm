@@ -44,6 +44,14 @@ class SysApi extends BaseController
         'pay_wx_serial_no'     => '',
         // 支付：支付宝应用
         'pay_ali_app_id'       => '',
+        // 支付：密钥证书类（默认空串占位使键进入保存白名单；
+        // 真值经 Setting SECRET_KEYS 加密落库，读取仅掩码）
+        'pay_wx_apiv3_key'     => '',
+        'pay_wx_mch_cert'      => '',
+        'pay_wx_mch_key'       => '',
+        'pay_ali_private_key'  => '',
+        'pay_ali_app_public_cert' => '',
+        'pay_ali_public_cert'  => '',
         // 支付：转账核销
         'pay_transfer_name'    => '',
         'pay_transfer_account' => '',

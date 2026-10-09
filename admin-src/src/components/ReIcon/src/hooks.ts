@@ -50,9 +50,14 @@ export function useRenderIcon(icon: any, attrs?: iconType): Component {
       name: "Icon",
       render() {
         if (!icon) return;
-        const IconifyIcon = icon.includes(":")
-          ? IconifyIconOnline
-          : IconifyIconOffline;
+        // ep//ri/ 前缀的菜单图标已在 offlineIcon 中构建期内联注册，
+        // 优先走离线渲染，避免 iconify 在线 API 不可达时图标缺失
+        const preferOffline =
+          icon.startsWith("ep/") || icon.startsWith("ri/");
+        const IconifyIcon =
+          icon.includes(":") && !preferOffline
+            ? IconifyIconOnline
+            : IconifyIconOffline;
         return h(IconifyIcon, {
           icon,
           ...attrs
