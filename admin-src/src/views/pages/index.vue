@@ -378,7 +378,7 @@ onBeforeUnmount(() => {
 
         <template #empty>
           <div class="empty-tip">
-            {{ query.deleted ? "回收站为空" : "还没有页面，点击右上角新建" }}
+            {{ query.deleted ? "回收站为空" : "还没有页面，点击左上角「新建页面」" }}
           </div>
         </template>
       </el-table>

@@ -1211,7 +1211,7 @@ onBeforeUnmount(() => {
       </div>
       <el-empty
         v-if="!iconRows.length"
-        description="还没有可设置的字段，先在左侧画布添加字段"
+        description="还没有可设置的字段，先在中间画布添加字段"
         :image-size="72"
       />
       <div v-else class="fi-rows">

@@ -698,7 +698,7 @@ async function removeBinding(row: any) {
           query.deleted
             ? '回收站为空'
             : canCreate
-              ? '还没有表单，点右上角新建'
+              ? '还没有表单，点左上角「新建表单」'
               : '还没有表单'
         "
       >
