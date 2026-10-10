@@ -337,7 +337,7 @@ class License
                 $pdo = new \PDO(
                     "mysql:host={$cfg['hostname']};dbname={$cfg['database']};charset=utf8mb4",
                     $cfg['username'], $cfg['password'],
-                    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+                    [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]
                 );
                 $sqls = glob($sqlDir . DIRECTORY_SEPARATOR . 'upgrade-*.sql') ?: [];
                 sort($sqls);
