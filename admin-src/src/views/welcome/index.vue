@@ -2,6 +2,7 @@
 import { ref, reactive, computed, onMounted, onBeforeUnmount } from "vue";
 import { useRouter } from "vue-router";
 import { getDashboard } from "@/api/ownform";
+import { getLicenseStatus } from "@/api/ownform";
 import { message } from "@/utils/message";
 import dayjs from "dayjs";
 import * as echarts from "echarts";
@@ -70,6 +71,25 @@ const canCreateForm =
     (userInfo?.permissions || []).length &&
     !(userInfo?.permissions || []).includes("form:create")
   );
+
+/** 授权状态横幅（grace/locked 时显示） */
+const licenseState = ref<{ state: string; graceDays: number; expire: string }>({
+  state: "ok",
+  graceDays: 30,
+  expire: ""
+});
+onMounted(async () => {
+  try {
+    const st = await getLicenseStatus();
+    licenseState.value = {
+      state: st.state || "ok",
+      graceDays: st.graceDays || 30,
+      expire: st.expire || ""
+    };
+  } catch {
+    /* 忽略 */
+  }
+});
 
 const greetTime = computed(() => {
   const h = new Date().getHours();
@@ -319,6 +339,24 @@ onBeforeUnmount(() => {
 
 <template>
   <div v-loading="loading">
+    <el-alert
+      v-if="licenseState.state === 'grace'"
+      type="warning"
+      :closable="false"
+      show-icon
+      style="margin-bottom: 14px; cursor: pointer"
+      :title="'系统授权待确认：请在 ' + licenseState.graceDays + ' 天宽限期内到 关于系统 完成授权校验，否则将进入只读模式'"
+      @click="() => $router.push('/about/index')"
+    />
+    <el-alert
+      v-else-if="licenseState.state === 'locked'"
+      type="error"
+      :closable="false"
+      show-icon
+      style="margin-bottom: 14px; cursor: pointer"
+      title="系统授权已到期，已进入只读模式：请到 关于系统 完成激活后恢复"
+      @click="() => $router.push('/about/index')"
+    />
     <!-- 问候卡 -->
     <el-card shadow="never" class="greet-card">
       <div class="greet-inner">

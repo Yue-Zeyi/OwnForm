@@ -22,6 +22,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft
 .done-box { text-align: center; padding: 40px 0; }
 .done-icon { font-size: 60px; }
 .done-tip { color: #909399; font-size: 13px; margin: 14px 0 24px; line-height: 1.9; }
+.lic-ok { color: #34b96f; font-size: 12.5px; margin-top: 4px; }
+.lic-err { color: #f56c6c; font-size: 12.5px; margin-top: 4px; }
+.lic-need { color: #e6a23c; font-size: 13px; margin-top: 8px; }
 </style>
 </head>
 <body>
@@ -59,7 +62,29 @@ body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft
 
       <!-- 配置 -->
       <el-card shadow="never" class="mt16">
-        <template #header><b>第 2 步 · 数据库与管理员</b></template>
+        <template #header><b>第 2 步 · 授权与基础配置</b></template>
+        <div class="divider-title">授权码（必填）</div>
+        <el-form label-width="110px" label-position="left" style="max-width:560px">
+          <el-form-item label="授权服务器">
+            <el-input v-model="f.licenseServer" placeholder="由系统提供方分配，如 https://update.example.com"></el-input>
+          </el-form-item>
+          <el-form-item label="授权码">
+            <div style="display:flex;gap:8px;width:100%">
+              <el-input v-model="f.licenseCode" placeholder="如 OF-XXXX-XXXX"></el-input>
+              <el-button :loading="licChecking" @click="checkLicense">{{ f.licenseOk ? '已验证 ✓' : '验证授权' }}</el-button>
+            </div>
+            <div class="lic-ok" v-if="f.licenseOk">
+              授权有效{{ f.licenseExpire ? '，有效期至 ' + f.licenseExpire : '（永久）' }}，已绑定本站域名
+            </div>
+            <div class="lic-err" v-if="licError">{{ licError }}</div>
+          </el-form-item>
+          <el-form-item v-if="licError" label="离线激活码">
+            <div style="display:flex;gap:8px;width:100%">
+              <el-input v-model="f.offlineCode" placeholder="无法连接授权服务器？向提供方索取离线激活码"></el-input>
+              <el-button :loading="licChecking" @click="checkLicenseOffline">离线校验</el-button>
+            </div>
+          </el-form-item>
+        </el-form>
         <div class="divider-title">MySQL 数据库</div>
         <el-form label-width="110px" label-position="left">
           <el-row :gutter="12">
@@ -81,7 +106,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft
 
       <div class="mt16" style="text-align:center">
         <el-button type="primary" size="large" style="width:280px" :loading="installing"
-          :disabled="!allOk" @click="run">开始安装</el-button>
+          :disabled="!allOk || !f.licenseOk" @click="run">开始安装</el-button>
+        <div class="lic-need" v-if="allOk && !f.licenseOk">请先完成授权验证</div>
       </div>
     </template>
   </div>
@@ -101,10 +127,14 @@ body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft
         checks: [],
         checking: true,
         installing: false,
+        licChecking: false,
+        licError: '',
         f: {
           dbHost: '127.0.0.1', dbPort: '3306', dbName: 'ownform', dbPrefix: 'of_',
           dbUser: 'root', dbPass: '',
           adminUser: '', adminPass: '',
+          licenseServer: '', licenseCode: '', licenseOk: false, licenseExpire: '',
+          licenseToken: '', offlineCode: '',
         },
       };
     },
@@ -128,7 +158,36 @@ body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft
         }
         this.checking = false;
       },
+      async checkLicense() {
+        if (!this.f.licenseServer) return ElementPlus.ElMessage.error('请填写授权服务器地址');
+        if (!this.f.licenseCode) return ElementPlus.ElMessage.error('请填写授权码');
+        this.licChecking = true;
+        this.licError = '';
+        this.f.licenseOk = false;
+        try {
+          const res = await fetch('/api/install/license-check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+              server: this.f.licenseServer,
+              license: this.f.licenseCode,
+              offline: this.f.offlineCode || '',
+            }),
+          });
+          const data = await res.json();
+          if (data.code !== 0) throw new Error(data.msg || '授权验证失败');
+          this.f.licenseOk = true;
+          this.f.licenseExpire = data.data.expire || '';
+          this.f.licenseToken = data.data.token || '';
+          ElementPlus.ElMessage.success('授权验证通过');
+        } catch (e) {
+          this.licError = e.message || '授权验证失败';
+        }
+        this.licChecking = false;
+      },
       async run() {
+        if (!this.f.licenseOk) return ElementPlus.ElMessage.error('请先完成授权验证');
         if (!this.f.dbName || !this.f.dbUser) return ElementPlus.ElMessage.error('请填写数据库名和用户名');
         if (!this.f.adminUser || !this.f.adminPass) return ElementPlus.ElMessage.error('请填写管理员账号和密码');
         this.installing = true;

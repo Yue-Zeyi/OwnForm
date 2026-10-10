@@ -75,6 +75,92 @@ class License
         return self::serverUrl() !== '' && self::licenseCode() !== '';
     }
 
+    /** 宽限期（天）：最后一次成功校验后允许继续正常运行的时间 */
+    public const GRACE_DAYS = 30;
+
+    /**
+     * 授权运行状态：
+     *   ok       有效授权（心跳在宽限期内）
+     *   grace    宽限期内（曾激活但近期心跳失败/未验证）
+     *   locked   超出宽限期（后台只读 + 访客提交拦截）
+     * 未启用授权体系（服务器地址未配置）视为 ok——避免老用户升级后被锁
+     */
+    public static function runtimeState(): string
+    {
+        if (!self::isConfigured()) {
+            return 'ok';
+        }
+        if (!self::token()) {
+            return 'grace'; // 有配置无令牌 = 未完成激活
+        }
+        $last = (string)Setting::get('license_last_ok', '');
+        if ($last === '') {
+            return 'grace';
+        }
+        $days = (time() - strtotime($last)) / 86400;
+        return $days <= self::GRACE_DAYS ? 'ok' : 'locked';
+    }
+
+    /**
+     * 每日心跳：后台请求时静默调用（缓存节流），失败不影响当天使用
+     * 全部失败时保留 license_last_ok 不动（宽限期自然流逝）
+     */
+    public static function dailyCheck(): void
+    {
+        if (!self::isConfigured() || Cache::get('license_checked_' . date('Ymd'))) {
+            return;
+        }
+        Cache::set('license_checked_' . date('Ymd'), 1, 86400);
+        try {
+            $res = self::call('/api/verify');
+            if (!empty($res['ok'])) {
+                Setting::set('license_last_ok', date('Y-m-d H:i:s'));
+                if (!empty($res['expire_at'])) {
+                    Setting::set('license_expire', (string)$res['expire_at']);
+                }
+            }
+        } catch (\Throwable $e) {
+            // 服务器不可达：离线码兜底（配置了才尝试）
+            $offline = trim((string)Setting::get('license_offline_code'));
+            if ($offline !== '') {
+                try {
+                    $res = self::call('/api/offline-verify', ['offline' => $offline]);
+                    if (!empty($res['ok'])) {
+                        Setting::set('license_last_ok', date('Y-m-d H:i:s'));
+                    }
+                } catch (\Throwable $e2) {
+                    /* 双通道都失败：留待宽限期机制处理 */
+                }
+            }
+        }
+    }
+
+    /**
+     * 只读锁判定（lock 时业务侧调用）：锁定状态下禁止写操作
+     */
+    public static function isLocked(): bool
+    {
+        return self::runtimeState() === 'locked';
+    }
+
+    /**
+     * 离线激活：客户粘贴离线码（安装向导/关于系统在服务器不可达时使用）
+     */
+    public static function activateOffline(string $offlineCode): array
+    {
+        try {
+            $res = self::call('/api/offline-verify', ['offline' => $offlineCode]);
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'msg' => '无法连接授权服务器，请检查网络'];
+        }
+        if (empty($res['ok'])) {
+            return ['ok' => false, 'msg' => (string)($res['msg'] ?? '离线码无效')];
+        }
+        Setting::set('license_offline_code', trim($offlineCode));
+        Setting::set('license_last_ok', date('Y-m-d H:i:s'));
+        return ['ok' => true, 'grace_days' => (int)($res['grace_days'] ?? 90)];
+    }
+
     /**
      * 服务器 API 请求（POST，表单）
      */

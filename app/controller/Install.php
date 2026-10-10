@@ -80,6 +80,72 @@ class Install extends BaseController
     /**
      * 执行安装
      */
+    /**
+     * POST api/install/license-check — 安装期授权验证（服务端直连授权服务器）
+     * 在线激活：/api/install-activate 绑定域名签发 token；
+     * 离线码：/api/offline-verify 兜底校验。
+     * 成功后把服务器地址/授权码/token 暂存 session，安装完成时落库。
+     */
+    public function licenseCheck()
+    {
+        $server  = rtrim(trim((string)input('post.server', '')), '/');
+        $license = trim((string)input('post.license', ''));
+        $offline = trim((string)input('post.offline', ''));
+        if ($server === '' || $license === '') {
+            return $this->fail('请填写授权服务器与授权码');
+        }
+        if (!preg_match('#^https?://#', $server)) {
+            return $this->fail('授权服务器地址需以 http(s):// 开头');
+        }
+        $domain = strtolower((string)$this->request->host(true));
+        $post = function (string $path) use ($server, $license, $domain, $offline) {
+            $ch = curl_init($server . $path);
+            curl_setopt_array($ch, [
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => http_build_query([
+                    'license' => $license, 'domain' => $domain, 'offline' => $offline,
+                ]),
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 15,
+            ]);
+            $raw = curl_exec($ch);
+            $err = curl_error($ch);
+            curl_close($ch);
+            if ($raw === false) throw new \RuntimeException('无法连接授权服务器：' . $err);
+            return json_decode((string)$raw, true) ?: [];
+        };
+        try {
+            // 1) 在线激活（含离线码透传核销）
+            $res = $post('/api/install-activate');
+            if (empty($res['ok']) && $offline !== '') {
+                // 2) 在线失败（服务器不可达等）走离线码校验兜底
+                $res = $post('/api/offline-verify');
+            }
+        } catch (\RuntimeException $e) {
+            if ($offline === '') {
+                return $this->fail($e->getMessage() . '。无法在线验证时可向系统提供方索取离线激活码');
+            }
+            try {
+                $res = $post('/api/offline-verify');
+            } catch (\RuntimeException $e2) {
+                return $this->fail('离线校验也失败：' . $e2->getMessage());
+            }
+        } catch (\Throwable $e) {
+            return $this->fail('授权验证异常：' . $e->getMessage());
+        }
+        if (empty($res['ok'])) {
+            return $this->fail((string)($res['msg'] ?? '授权验证失败'), 403);
+        }
+        session('install_license', [
+            'server'  => $server,
+            'code'    => $license,
+            'token'   => (string)($res['token'] ?? ''),
+            'expire'  => (string)($res['expire_at'] ?? ''),
+            'offline' => $offline,
+        ]);
+        return $this->ok(['expire' => (string)($res['expire_at'] ?? ''), 'token' => (string)($res['token'] ?? '')]);
+    }
+
     public function run()
     {
         if (is_file($this->lockFile)) {
@@ -127,6 +193,11 @@ class Install extends BaseController
         $dbPrefix = trim((string)($data['dbPrefix'] ?? 'of_')) ?: 'of_';
         $adminUser = trim((string)($data['adminUser'] ?? ''));
         $adminPass = (string)($data['adminPass'] ?? '');
+        // 安装期授权校验：session 里必须有通过验证的授权信息
+        $lic = session('install_license');
+        if (!is_array($lic) || empty($lic['token'])) {
+            return $this->fail('请先完成授权验证（第 2 步顶部）');
+        }
 
         if ($dbName === '' || $dbUser === '') {
             return $this->fail('请填写数据库名和用户名');
@@ -234,6 +305,25 @@ class Install extends BaseController
 
         // 锁文件已由 run() 以独占方式创建，这里只补写时间戳
         file_put_contents($this->lockFile, date('Y-m-d H:i:s') . "\ninstalled_at=" . date('c') . "\n", FILE_APPEND);
+
+        // 授权配置落库：安装期验证通过的服务器地址 / 授权码 / 令牌 / 到期
+        try {
+            $lic = session('install_license');
+            if (is_array($lic)) {
+                $set = function (string $k, string $v) {
+                    \app\logic\Setting::set($k, $v);
+                };
+                $set('update_server_url', (string)($lic['server'] ?? ''));
+                $set('license_code', (string)($lic['code'] ?? ''));
+                $set('license_token', (string)($lic['token'] ?? ''));
+                $set('license_expire', (string)($lic['expire'] ?? ''));
+                $set('license_last_ok', date('Y-m-d H:i:s'));
+                $set('license_domain', strtolower((string)$this->request->host(true)));
+            }
+        } catch (\Throwable $e) {
+            // 落库失败不阻断安装完成提示，但记录日志便于排查
+            \think\facade\Log::write('[install] 授权配置写入失败: ' . $e->getMessage(), 'notice');
+        }
 
         return $this->ok([
             'adminUser' => $adminUser,

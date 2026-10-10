@@ -9,6 +9,7 @@ Route::get('/', 'Index/index');
 Route::get('install', 'Install/page');
 Route::get('api/install/status', 'Install/status');
 Route::post('api/install/run', 'Install/run');
+Route::post('api/install/license-check', 'Install/licenseCheck');
 
 // ---------- 页面 ----------
 Route::get('s/:slug', 'Page/fill');
@@ -131,6 +132,7 @@ Route::post('api/orders/:id/cancel', 'OrderApi/cancel')->middleware(\app\middlew
 // ---------- 授权与在线更新（管理端） ----------
 Route::get('api/license/status', 'UpdateApi/status')->middleware(\app\middleware\AdminAuth::class);
 Route::post('api/license/activate', 'UpdateApi/activate')->middleware(\app\middleware\AdminAuth::class);
+Route::post('api/license/activate-offline', 'UpdateApi/activateOffline')->middleware(\app\middleware\AdminAuth::class);
 Route::post('api/license/verify', 'UpdateApi/verify')->middleware(\app\middleware\AdminAuth::class);
 Route::get('api/update/check', 'UpdateApi/check')->middleware(\app\middleware\AdminAuth::class);
 Route::post('api/update/apply', 'UpdateApi/apply')->middleware(\app\middleware\AdminAuth::class);

@@ -337,6 +337,10 @@ class FillApi extends BaseController
         if (\app\logic\OrderUtil::payConfig($form)) {
             return $this->fail('该表单需支付后提交', 4008);
         }
+        // 授权锁定：系统未授权超期，暂停对外收集
+        if (\app\logic\License::isLocked()) {
+            return $this->fail('系统授权已到期，暂停收集，请联系系统提供方', 4009);
+        }
         // 必须始终经过 normalizeSettings：仅在 json_decode 失败时兜底是不够的，
         // 历史数据的 settings_json 可能只存了部分键，直接取值会触发 undefined key
         $decoded = json_decode((string)$form['settings_json'], true);

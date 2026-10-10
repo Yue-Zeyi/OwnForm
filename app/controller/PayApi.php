@@ -38,6 +38,9 @@ class PayApi extends BaseController
         if (is_string($form)) {
             return $this->fail($form, 4004);
         }
+        if (License::isLocked()) {
+            return $this->fail('系统授权已到期，暂停收集，请联系系统提供方', 4009);
+        }
         $payConfig = OrderUtil::payConfig($form);
         if (!$payConfig) {
             return $this->fail('该表单无需支付', 422);

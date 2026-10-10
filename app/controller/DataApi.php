@@ -876,6 +876,12 @@ class DataApi extends BaseController
         } catch (\Throwable $e) {
             \think\facade\Log::write('[retention] 后台触发清理失败：' . $e->getMessage(), 'notice');
         }
+        // 授权每日心跳（静默，失败不影响使用）
+        try {
+            \app\logic\License::dailyCheck();
+        } catch (\Throwable $e) {
+            \think\facade\Log::write('[license] 心跳失败：' . $e->getMessage(), 'notice');
+        }
         $fq = $this->formQuery();
         $formTotal = (clone $fq)->count();
         $activeTotal = (clone $fq)->where('status', 1)->count();

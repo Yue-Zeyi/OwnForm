@@ -31,6 +31,8 @@ class UpdateApi extends BaseController
             'activated'  => trim((string)Setting::get('license_token')) !== '',
             'expire'     => Setting::get('license_expire', ''),
             'configured' => $configured,
+            'state'      => License::runtimeState(),
+            'graceDays'  => License::GRACE_DAYS,
         ];
         return $this->ok($out);
     }
@@ -56,6 +58,30 @@ class UpdateApi extends BaseController
             return $this->fail($res['msg'], 403);
         }
         return $this->ok(['msg' => '激活成功' . ($res['expire'] ? '，有效期至 ' . $res['expire'] : '')]);
+    }
+
+    /** 离线激活：粘贴离线码完成校验（授权服务器不可达时兜底） */
+    public function activateOffline()
+    {
+        if ($err = $this->forbidNonAdmin()) {
+            return $err;
+        }
+        $code = trim((string)input('post.offline', ''));
+        if ($code === '') {
+            return $this->fail('请输入离线激活码');
+        }
+        if (License::serverUrl() === '') {
+            return $this->fail('请先填写授权服务器地址');
+        }
+        try {
+            $res = License::activateOffline($code);
+        } catch (\Throwable $e) {
+            return $this->fail($e->getMessage(), 502);
+        }
+        if (!$res['ok']) {
+            return $this->fail($res['msg'], 403);
+        }
+        return $this->ok(['msg' => '离线校验通过，已续期 ' . $res['grace_days'] . ' 天宽限期']);
     }
 
     public function verify()
