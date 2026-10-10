@@ -29,6 +29,8 @@ class Setting
         'pay_ali_private_key',      // 应用私钥 PEM 全文
         'pay_ali_app_public_cert',  // 应用公钥证书全文
         'pay_ali_public_cert',      // 支付宝公钥证书全文
+        'license_code',             // 授权码
+        'license_token',            // 授权服务器签发的会话令牌
     ];
 
     private static ?array $cache = null;

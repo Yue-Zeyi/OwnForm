@@ -17,6 +17,7 @@ cd "$ROOT"
 mkdir -p "$STAGE"
 rsync -a "$ROOT/" "$STAGE/" \
   --exclude "admin-src/" \
+  --exclude "license-server/" \
   --exclude "version/" \
   --exclude "scripts/" \
   --exclude "runtime/" \

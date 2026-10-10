@@ -127,6 +127,13 @@ Route::get('api/orders/:id', 'OrderApi/read')->middleware(\app\middleware\AdminA
 Route::post('api/orders/:id/verify', 'OrderApi/verify')->middleware(\app\middleware\AdminAuth::class);
 Route::post('api/orders/:id/refund', 'OrderApi/refund')->middleware(\app\middleware\AdminAuth::class);
 Route::post('api/orders/:id/cancel', 'OrderApi/cancel')->middleware(\app\middleware\AdminAuth::class);
+
+// ---------- 授权与在线更新（管理端） ----------
+Route::get('api/license/status', 'UpdateApi/status')->middleware(\app\middleware\AdminAuth::class);
+Route::post('api/license/activate', 'UpdateApi/activate')->middleware(\app\middleware\AdminAuth::class);
+Route::post('api/license/verify', 'UpdateApi/verify')->middleware(\app\middleware\AdminAuth::class);
+Route::get('api/update/check', 'UpdateApi/check')->middleware(\app\middleware\AdminAuth::class);
+Route::post('api/update/apply', 'UpdateApi/apply')->middleware(\app\middleware\AdminAuth::class);
 Route::post('api/fill/:slug/sms-code', 'FillApi/smsCode');
 Route::get('api/captcha', 'FillApi/captcha');
 

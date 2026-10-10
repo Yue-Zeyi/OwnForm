@@ -7,7 +7,12 @@ import {
   saveSysSettings,
   testNotify,
   testStorage,
-  runCleanup
+  runCleanup,
+  getLicenseStatus,
+  activateLicense,
+  verifyLicense,
+  checkUpdate,
+  applyUpdate
 } from "@/api/ownform";
 import { brand, loadBrand } from "@/utils/brand";
 import { http } from "@/utils/http";
@@ -54,6 +59,12 @@ const sys = reactive<any>({
   // 每日汇总邮件
   digest_enabled: "0",
   digest_email: "",
+  // 授权与在线更新
+  update_server_url: "",
+  license_code: "",
+  license_token: "",
+  license_domain: "",
+  license_expire: "",
   // 支付渠道（渠道勾选为 JSON 数组字符串，页面上用数组桥接）
   pay_channels: "[]",
   pay_wx_app_id: "",
@@ -218,6 +229,81 @@ async function doTestNotify() {
   }
 }
 
+/** ---------- 授权与在线更新 ---------- */
+const licenseStatus = ref<any>({ version: "", activated: false, domain: "", expire: "", configured: false });
+const activating = ref(false);
+const checking = ref(false);
+const applying = ref(false);
+const updateInfo = ref<any>({});
+
+async function loadLicense() {
+  try {
+    licenseStatus.value = await getLicenseStatus();
+  } catch {
+    /* 忽略 */
+  }
+}
+async function doActivate() {
+  if (!sys.update_server_url) return message("请先填写授权服务器地址", { type: "warning" });
+  if (!sys.license_code) return message("请输入授权码", { type: "warning" });
+  activating.value = true;
+  try {
+    // 先保存服务器地址与授权码，再激活
+    await save();
+    const d = await activateLicense(sys.license_code);
+    message(d.msg || "激活成功", { type: "success" });
+    await loadLicense();
+  } catch (e: any) {
+    message(e.message, { type: "error" });
+  }
+  activating.value = false;
+}
+async function doVerify() {
+  try {
+    const d = await verifyLicense();
+    if (d.ok) {
+      licenseStatus.value.expire = d.expire || licenseStatus.value.expire;
+      message("授权有效" + (d.expire ? "，有效期至 " + d.expire : ""), { type: "success" });
+    } else {
+      message(d.msg || "授权校验未通过", { type: "error" });
+    }
+  } catch (e: any) {
+    message(e.message, { type: "error" });
+  }
+}
+async function doCheckUpdate() {
+  if (!sys.update_server_url) return message("请先填写并保存授权服务器地址", { type: "warning" });
+  checking.value = true;
+  try {
+    updateInfo.value = await checkUpdate();
+    if (!updateInfo.value.ok) message(updateInfo.value.msg || "检查失败", { type: "error" });
+  } catch (e: any) {
+    message(e.message, { type: "error" });
+  }
+  checking.value = false;
+}
+async function doApply() {
+  const i = updateInfo.value;
+  try {
+    await ElMessageBox.confirm(
+      `将在线升级至 v${i.version}：自动下载并覆盖系统文件${i.notes ? "（" + i.notes + "）" : ""}。更新前请确认已备份站点与数据库。继续？`,
+      "在线热更新",
+      { type: "warning", confirmButtonText: "开始更新", cancelButtonText: "取消" }
+    );
+  } catch {
+    return;
+  }
+  applying.value = true;
+  try {
+    const d = await applyUpdate({ version: i.version, url: i.url, sha256: i.sha256 });
+    message(`已升级至 v${d.version}（覆盖 ${d.copied} 个文件）`, { type: "success" });
+    await loadLicense();
+  } catch (e: any) {
+    message(e.message, { type: "error" });
+  }
+  applying.value = false;
+}
+
 /** 支付渠道勾选桥接：sys.pay_channels(JSON 字符串) ↔ 数组 */
 const payChannelArr = ref<string[]>([]);
 watch(payChannelArr, (v) => {
@@ -322,7 +408,10 @@ async function doCleanup() {
   cleaning.value = false;
 }
 
-onMounted(() => load());
+onMounted(() => {
+  load();
+  loadLicense();
+});
 </script>
 
 <template>
@@ -1114,6 +1203,20 @@ onMounted(() => load());
 /* 分区说明（分区标题下的一行灰字） */
 .sec-tip {
   margin: -4px 0 10px;
+}
+
+/* 授权更新 */
+.update-box {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--el-color-primary-light-5);
+  background: var(--el-color-primary-light-9);
+  border-radius: 8px;
+  max-width: 420px;
+}
+.update-ver {
+  font-size: 15px;
+  font-weight: 600;
 }
 
 /* 支付分区小标题 */

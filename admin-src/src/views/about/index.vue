@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from "vue";
 import { message } from "@/utils/message";
+import { ElMessageBox } from "element-plus";
 import { http } from "@/utils/http";
+import {
+  getLicenseStatus,
+  activateLicense,
+  verifyLicense,
+  checkUpdate as checkUpdateApi,
+  applyUpdate
+} from "@/api/ownform";
 
 defineOptions({
   name: "AboutPage"
@@ -96,15 +104,107 @@ async function load() {
   loading.value = false;
 }
 
-function checkUpdate() {
-  checking.value = true;
-  setTimeout(() => {
-    checking.value = false;
-    message("当前已是最新版本，在线更新功能即将上线", { type: "info" });
-  }, 800);
+/* ---------- 授权与在线更新 ---------- */
+const lic = reactive<any>({
+  server: "",
+  license: "",
+  domain: "",
+  activated: false,
+  expire: "",
+  configured: false
+});
+const licenseInput = ref("");
+const activating = ref(false);
+const applying = ref(false);
+const upd = ref<any>({});
+
+async function loadLicense() {
+  try {
+    const st = await getLicenseStatus();
+    d.version = st.version;
+    lic.server = st.server || "";
+    lic.license = st.license || "";
+    lic.domain = st.domain || "";
+    lic.activated = !!st.activated;
+    lic.expire = st.expire || "";
+    lic.configured = !!st.configured;
+  } catch {
+    /* 忽略 */
+  }
 }
 
-onMounted(() => load());
+async function doActivate() {
+  if (!lic.server) return message("请先填写授权服务器地址", { type: "warning" });
+  if (!licenseInput.value) return message("请输入授权码", { type: "warning" });
+  activating.value = true;
+  try {
+    await http.post("/sys/settings", {
+      data: { update_server_url: lic.server, license_code: licenseInput.value }
+    });
+    const res = await activateLicense(licenseInput.value);
+    message(res.msg || "激活成功", { type: "success" });
+    await loadLicense();
+  } catch (e: any) {
+    message(e.message, { type: "error" });
+  }
+  activating.value = false;
+}
+
+async function doVerify() {
+  try {
+    const res = await verifyLicense();
+    if (res.ok) {
+      lic.expire = res.expire || lic.expire;
+      message("授权有效" + (res.expire ? "，有效期至 " + res.expire : ""), { type: "success" });
+    } else {
+      message(res.msg || "授权校验未通过", { type: "error" });
+    }
+  } catch (e: any) {
+    message(e.message, { type: "error" });
+  }
+}
+
+async function checkUpdate() {
+  checking.value = true;
+  try {
+    upd.value = await checkUpdateApi();
+    if (!upd.value.ok) {
+      message(upd.value.msg || "检查失败，请确认已填写授权服务器并激活", { type: "error" });
+    } else if (!upd.value.update) {
+      message("已是最新版本 v" + upd.value.current, { type: "success" });
+    }
+  } catch (e: any) {
+    message(e.message, { type: "error" });
+  }
+  checking.value = false;
+}
+
+async function doApply() {
+  const i = upd.value;
+  try {
+    await ElMessageBox.confirm(
+      `将在线升级至 v${i.version}：自动下载并覆盖系统文件${i.notes ? "（" + i.notes + "）" : ""}。更新前请确认已备份站点与数据库。继续？`,
+      "在线热更新",
+      { type: "warning", confirmButtonText: "开始更新", cancelButtonText: "取消" }
+    );
+  } catch {
+    return;
+  }
+  applying.value = true;
+  try {
+    const res = await applyUpdate({ version: i.version, url: i.url, sha256: i.sha256 });
+    message(`已升级至 v${res.version}（覆盖 ${res.copied} 个文件）`, { type: "success" });
+    await loadLicense();
+  } catch (e: any) {
+    message(e.message, { type: "error" });
+  }
+  applying.value = false;
+}
+
+onMounted(() => {
+  load();
+  loadLicense();
+});
 </script>
 
 <template>
@@ -152,11 +252,49 @@ onMounted(() => load());
           <div class="ver-info">
             <div class="ver-name">当前版本</div>
             <div class="ver-desc">
-              在线更新功能开发中，届时可在此一键检查并升级
+              <template v-if="lic.activated">
+                <el-tag size="small" type="success">已授权</el-tag>
+                {{ lic.license }}
+                <template v-if="lic.expire">· 有效期至 {{ lic.expire }}</template>
+                <el-button link type="primary" size="small" @click="doVerify">
+                  校验
+                </el-button>
+              </template>
+              <template v-else>未激活——填写授权服务器与授权码后可在线更新</template>
             </div>
           </div>
         </div>
         <el-button :loading="checking" @click="checkUpdate">检查更新</el-button>
+      </div>
+
+      <el-divider style="margin: 16px 0" />
+      <el-form label-width="110px" label-position="left" style="max-width: 460px">
+        <el-form-item label="授权服务器">
+          <el-input
+            v-model="lic.server"
+            placeholder="由系统提供方分配"
+            :disabled="lic.activated"
+          />
+        </el-form-item>
+        <el-form-item v-if="!lic.activated" label="授权码">
+          <div style="display: flex; gap: 8px; width: 100%">
+            <el-input v-model="licenseInput" placeholder="如 OF-XXXX-XXXX" />
+            <el-button :loading="activating" @click="doActivate">激活</el-button>
+          </div>
+        </el-form-item>
+      </el-form>
+
+      <div v-if="upd.ok && upd.update" class="update-box">
+        <div class="update-ver">
+          发现新版本 v{{ upd.version }}
+          <span class="form-tip" style="margin-left: 8px">
+            当前 v{{ upd.current }}
+          </span>
+        </div>
+        <div class="form-tip" style="margin: 6px 0 12px">{{ upd.notes }}</div>
+        <el-button type="primary" :loading="applying" @click="doApply">
+          立即更新
+        </el-button>
       </div>
     </el-card>
 
@@ -424,5 +562,16 @@ onMounted(() => load());
   color: #909399;
   font-size: 12px;
   line-height: 1.6;
+}
+.update-box {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--el-color-primary-light-5);
+  background: var(--el-color-primary-light-9);
+  border-radius: 8px;
+}
+.update-ver {
+  font-size: 15px;
+  font-weight: 600;
 }
 </style>

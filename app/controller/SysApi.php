@@ -54,6 +54,12 @@ class SysApi extends BaseController
         'pay_ali_public_cert'  => '',
         // 支付：转账核销
         'pay_transfer_name'    => '',
+        // 授权与在线更新
+        'update_server_url'    => '',
+        'license_code'         => '',
+        'license_token'        => '',
+        'license_domain'       => '',
+        'license_expire'       => '',
         'pay_transfer_account' => '',
         'pay_transfer_qr'      => '',
         'pay_transfer_tip'     => '',
@@ -332,7 +338,7 @@ class SysApi extends BaseController
 
         return $this->ok([
             'sysName'    => Setting::get('sys_name', 'OwnForm') ?: 'OwnForm',
-            'version'    => 'v0.0.2',
+            'version'    => 'v' . \app\logic\License::currentVersion(),
             'phpVersion' => PHP_VERSION,
             'dbVersion'  => $dbVersion,
             'serverTime' => date('Y-m-d H:i:s'),

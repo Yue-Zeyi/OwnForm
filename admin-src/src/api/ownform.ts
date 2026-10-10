@@ -205,3 +205,14 @@ export const refundOrder = (id: number, reason: string) =>
   http.post<any, any>(`/orders/${id}/refund`, { data: { reason } });
 export const cancelOrder = (id: number) =>
   http.post<any, any>(`/orders/${id}/cancel`, { data: {} });
+
+
+/** ---------- 授权与在线更新 ---------- */
+export const getLicenseStatus = () => http.get<any, any>("/license/status");
+export const activateLicense = (license: string) =>
+  http.post<any, any>("/license/activate", { data: { license } });
+export const verifyLicense = () =>
+  http.post<any, any>("/license/verify", { data: {} });
+export const checkUpdate = () => http.get<any, any>("/update/check");
+export const applyUpdate = (p: { version: string; url: string; sha256: string }) =>
+  http.post<any, any>("/update/apply", { data: p });

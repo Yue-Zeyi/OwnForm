@@ -33,3 +33,6 @@ Thumbs.db
 /.zcodeignore
 # 旧 CI 配置
 /.travis.yml
+
+# 授权与更新服务器（独立私有部署，不随源码库/发布包分发）
+/license-server/
