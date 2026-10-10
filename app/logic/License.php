@@ -93,9 +93,11 @@ class License
         if (!self::token()) {
             return 'grace'; // 有配置无令牌 = 未完成激活
         }
+        // 已激活（持有效令牌）：ok；license_last_ok 记录最近一次成功心跳，
+        // 心跳断联超宽限期才转 locked（激活时刻即为起点，不会误伤新激活）
         $last = (string)Setting::get('license_last_ok', '');
         if ($last === '') {
-            return 'grace';
+            return 'ok';
         }
         $days = (time() - strtotime($last)) / 86400;
         return $days <= self::GRACE_DAYS ? 'ok' : 'locked';
@@ -230,6 +232,7 @@ class License
         Setting::set('license_token', (string)($res['token'] ?? ''));
         Setting::set('license_domain', (string)($res['domain'] ?? self::domain()));
         Setting::set('license_expire', (string)($res['expire_at'] ?? ''));
+        Setting::set('license_last_ok', date('Y-m-d H:i:s'));
         OpLog::write('sys', '授权激活', '授权码 ' . $licenseCode . ' 绑定 ' . self::domain());
         return ['ok' => true, 'expire' => $res['expire_at'] ?? ''];
     }
