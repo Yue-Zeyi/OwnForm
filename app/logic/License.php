@@ -166,34 +166,54 @@ class License
      */
     private static function call(string $path, array $extra = []): array
     {
-        $url = self::serverUrl() . $path;
         $body = http_build_query(array_merge([
             'license' => self::licenseCode(),
             'domain'  => self::domain(),
             'token'   => self::token(),
             'version' => self::currentVersion(),
         ], $extra));
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => $body,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 15,
-            CURLOPT_SSL_VERIFYPEER => true,
-        ]);
-        $raw = curl_exec($ch);
-        $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $err = curl_error($ch);
-        curl_close($ch);
-        if ($raw === false || $status >= 500) {
-            throw new \RuntimeException('授权服务器连接失败' . ($err ? '：' . $err : ''));
+        // 授权中心部署形态各异（伪静态 / PATH_INFO / 子目录），
+        // 依次尝试三种 URL 形态，任一返回合法 JSON 即成功并记忆
+        $candidates = [
+            self::serverUrl() . $path,                              // 伪静态 / PATH_INFO
+            self::serverUrl() . '/index.php?s=' . urlencode($path), // ?s= 伪静态
+            self::serverUrl() . '/index.php' . $path,               // PATH_INFO 显式
+        ];
+        $static = trim((string)Setting::get('license_api_url'));
+        if ($static !== '') {
+            array_unshift($candidates, $static . $path);
         }
-        $data = json_decode((string)$raw, true);
-        if (!is_array($data)) {
-            throw new \RuntimeException('授权服务器响应异常');
+        $lastErr = '授权服务器无有效响应';
+        foreach ($candidates as $url) {
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => $body,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 15,
+                CURLOPT_SSL_VERIFYPEER => true,
+            ]);
+            $raw = curl_exec($ch);
+            $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $err = curl_error($ch);
+            curl_close($ch);
+            if ($raw === false) {
+                $lastErr = '连接失败' . ($err ? '：' . $err : '');
+                continue;
+            }
+            $data = json_decode((string)$raw, true);
+            if (!is_array($data)) {
+                $lastErr = '响应异常(HTTP ' . $status . ')——请检查授权中心伪静态配置';
+                continue;
+            }
+            // 记住可用形态，后续直接命中
+            if ($static === '') {
+                Setting::set('license_api_url', rtrim($url, '/'));
+            }
+            $data['_status'] = $status;
+            return $data;
         }
-        $data['_status'] = $status;
-        return $data;
+        throw new \RuntimeException($lastErr);
     }
 
     /**
